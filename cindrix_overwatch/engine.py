@@ -27,24 +27,36 @@ ACCEPT = "application/rss+xml, application/atom+xml, application/xml, applicatio
 ACCEPT_BY_HOST = {"api.weather.gov": "application/geo+json"}      # otherwise it answers in Atom
 
 
+def _was_reset(e):
+    """True for 'connection forcibly closed' style errors (Windows 10054), which are usually worth one more try."""
+    r = getattr(e, "reason", e)
+    return isinstance(r, ConnectionError) or getattr(r, "winerror", None) in (10053, 10054) or getattr(r, "errno", None) in (104,)
+
+
 def default_fetch(url, timeout=25):
-    """Returns (status, text). Only https is allowed, including after redirects. Gzip is unpacked."""
+    """Returns (status, text). Only https is allowed, including after redirects. Gzip is unpacked.
+    A connection that is reset by the other side is tried once more after a short pause."""
     if not url.lower().startswith("https://"):
         return 0, ""
     accept = ACCEPT_BY_HOST.get(urlparse(url).hostname, ACCEPT)
-    req = urllib.request.Request(url, headers={"User-Agent": sources.UA, "Accept": accept})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            if not r.geturl().lower().startswith("https://"):
-                return 0, ""
-            raw = r.read(MAX_BYTES)
-            if raw[:2] == b"\x1f\x8b":
-                raw = gzip.GzipFile(fileobj=io.BytesIO(raw)).read(MAX_BYTES)
-            return r.status, raw.decode("utf-8", "replace")
-    except urllib.error.HTTPError as e:
-        return e.code, ""
-    except (urllib.error.URLError, OSError, TimeoutError, ValueError, EOFError) as e:
-        return 0, str(e)[:120]
+    for attempt in (0, 1):
+        req = urllib.request.Request(url, headers={"User-Agent": sources.UA, "Accept": accept})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                if not r.geturl().lower().startswith("https://"):
+                    return 0, ""
+                raw = r.read(MAX_BYTES)
+                if raw[:2] == b"\x1f\x8b":
+                    raw = gzip.GzipFile(fileobj=io.BytesIO(raw)).read(MAX_BYTES)
+                return r.status, raw.decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            return e.code, ""
+        except (urllib.error.URLError, OSError, TimeoutError, ValueError, EOFError) as e:
+            if attempt == 0 and _was_reset(e):
+                time.sleep(1.5)
+                continue
+            return 0, str(e)[:120]
+    return 0, ""
 
 
 class Controller:
@@ -95,10 +107,21 @@ class Controller:
         return default_fetch(url)
 
     def set_onion_address(self, name, addr):
+        """Saves an onion address typed or pasted by hand. Accepts it with or without http://."""
+        addr = (addr or "").strip()
+        if not addr:
+            self.settings["onion_addresses"].pop(name, None)
+            self.save_settings()
+            return ""
+        if "://" not in addr:
+            addr = "http://" + addr
         if not tor.is_onion_url(addr):
-            raise ValueError("That is not a valid .onion address.")
+            raise ValueError("That is not a valid .onion address. A current one is 56 letters and numbers followed by .onion.")
+        if not urlparse(addr).path:
+            addr += "/"
         self.settings["onion_addresses"][name] = addr
         self.save_settings()
+        return addr
 
     def find_feeds(self, address, say=None):
         return discover.find_feeds(self.fetch, address, say)

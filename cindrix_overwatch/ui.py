@@ -556,6 +556,29 @@ class App:
                 return name, home, kind
         return None
 
+    def _onion_selected(self, event=None):
+        sel = self.onion_tree.selection()
+        if sel:
+            self.onion_var.set(self.c.settings["onion_addresses"].get(sel[0], ""))
+
+    def _save_onion(self):
+        o = self._picked_outlet()
+        if not o:
+            return
+        try:
+            saved = self.c.set_onion_address(o[0], self.onion_var.get())
+        except ValueError as e:
+            self.tor_note.configure(text=str(e), fg=theme.RED)
+            return
+        self.onion_var.set(saved)
+        self.tor_note.configure(text="Saved. Use Connect its feed (via Tor) when Tor is running." if saved else "Cleared.",
+                                fg=theme.GREEN)
+        self._render_tor()
+
+    def _clear_onion(self):
+        self.onion_var.set("")
+        self._save_onion()
+
     def _lookup_onion(self):
         o = self._picked_outlet()
         if not o:
@@ -565,8 +588,8 @@ class App:
 
         def done(kind, val):
             if kind == "err" or not val:
-                self.tor_note.configure(text="That site did not advertise an onion address to us. You can paste one from the "
-                                             "outlet's own page into the reader or the assistant.", fg=theme.AMBER)
+                self.tor_note.configure(text="That site did not hand out an onion address (most do not to automatic readers). "
+                                             "Paste one from the outlet's own page in the box below.", fg=theme.AMBER)
                 return
             self.c.set_onion_address(name, val)
             self.tor_note.configure(text="Found it in the site's own Onion-Location header.", fg=theme.GREEN)
@@ -580,7 +603,7 @@ class App:
         name, home, _ = o
         addr = self.c.settings["onion_addresses"].get(name) if via_tor else home
         if via_tor and not addr:
-            self.tor_note.configure(text="Look up its onion address first.", fg=theme.AMBER)
+            self.tor_note.configure(text="Paste its onion address in the box below first, then Save address.", fg=theme.AMBER)
             return
         ui_extra.FeedAssistant(self, addr)
 

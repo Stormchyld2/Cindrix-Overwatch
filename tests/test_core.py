@@ -469,3 +469,33 @@ class CleanEnv(unittest.TestCase):
             os.environ.pop("TCL_LIBRARY", None)
         self.assertEqual(env["PATH"], os.sep + "usr")
         self.assertNotIn("TCL_LIBRARY", env)
+
+
+class OnionByHand(unittest.TestCase):
+    def test_paste_forms_and_clear(self):
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        self.assertEqual(c.set_onion_address("BBC News", ONION), "http://" + ONION + "/")
+        self.assertEqual(c.set_onion_address("BBC News", "  http://" + ONION + "/news  "), "http://" + ONION + "/news")
+        with self.assertRaises(ValueError):
+            c.set_onion_address("BBC News", "bbc.com")
+        self.assertEqual(c.settings["onion_addresses"]["BBC News"], "http://" + ONION + "/news")
+        c.set_onion_address("BBC News", "")
+        self.assertNotIn("BBC News", c.settings["onion_addresses"])
+        c.close()
+
+    def test_reset_is_retried_once(self):
+        import urllib.error
+        calls = []
+        real = engine.urllib.request.urlopen
+        sleep = engine.time.sleep
+        engine.time.sleep = lambda s: None
+        def boom(req, timeout=0):
+            calls.append(1)
+            raise urllib.error.URLError(ConnectionResetError(10054, "forcibly closed"))
+        engine.urllib.request.urlopen = boom
+        try:
+            status, msg = engine.default_fetch("https://example.com/x")
+        finally:
+            engine.urllib.request.urlopen = real
+            engine.time.sleep = sleep
+        self.assertEqual((status, len(calls)), (0, 2))

@@ -262,8 +262,18 @@ def build_tor_tab(app, p):
     app.btn(row2, "Connect its feed (normal site)", lambda: app._outlet_feed(False), small=True).pack(side="left", padx=8)
     app.btn(row2, "Connect its feed (via Tor)", lambda: app._outlet_feed(True), small=True).pack(side="left")
     app.btn(row2, "Open in reader", app._outlet_reader, small=True).pack(side="left", padx=8)
-    app.tor_note = app.label(p, "", app.f_small, theme.MUTED)
-    app.tor_note.grid(row=5, column=0, sticky="w", padx=16, pady=(0, 10))
+    row3 = tk.Frame(p, bg=theme.PANEL)
+    row3.grid(row=5, column=0, sticky="ew", padx=14, pady=(0, 6))
+    app.label(row3, "Onion address for the selected outlet", app.f_small, theme.MUTED, bg=theme.PANEL).grid(
+        row=0, column=0, columnspan=4, sticky="w", padx=12, pady=(8, 2))
+    app.onion_var = tk.StringVar()
+    _entry(row3, app.onion_var, 90).grid(row=1, column=0, sticky="w", padx=(12, 8), pady=(0, 10), ipady=5)
+    app.btn(row3, "Save address", app._save_onion, primary=True, small=True).grid(row=1, column=1, padx=4, pady=(0, 10))
+    app.btn(row3, "Clear", app._clear_onion, small=True).grid(row=1, column=2, padx=4, pady=(0, 10))
+    app.onion_tree.bind("<<TreeviewSelect>>", app._onion_selected)
+    app.tor_note = app.label(p, "Paste the address from the outlet's own page (a long name ending in .onion). It is checked "
+                                "for shape only; nothing is contacted until you connect its feed.", app.f_small, theme.MUTED)
+    app.tor_note.grid(row=6, column=0, sticky="w", padx=16, pady=(0, 10))
 
 
 def open_tor_browser(url="", root=""):
