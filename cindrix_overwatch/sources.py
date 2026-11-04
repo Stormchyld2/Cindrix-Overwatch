@@ -74,30 +74,20 @@ CANDIDATES = [
 # Early-warning candidates being tested from a real runner (see tests/check_feeds.py). Only ones that fetch and read
 # correctly get promoted into BUILTIN. Each is (id, name, group, kind, trust, url).
 TRIAL = [
-    # From the owner's second list (2026-11-04), being fetched from a real runner before they are switched on.
-    ("usgs-sig", "USGS significant quakes (week)", "Hazards", "hazard", "official",
-     "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson", "usgs"),
-    ("usgs-hr", "USGS all quakes (past hour)", "Hazards", "hazard", "official",
-     "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson", "usgs"),
-    ("gdacs24", "GDACS last 24 hours", "Hazards", "hazard", "official", "https://www.gdacs.org/xml/rss_24h.xml", "gdacs"),
-    ("nhc", "NOAA National Hurricane Center (Atlantic)", "Hazards", "weather", "official", "https://www.nhc.noaa.gov/index-at.xml", "rss"),
-    ("nws-us", "NWS active alerts (all US)", "Hazards", "weather", "official", "https://alerts.weather.gov/cap/us.php?x=0", "rss"),
-    ("climate", "NOAA Climate.gov news", "Hazards", "news", "official", "https://www.climate.gov/news-features/feed", "rss"),
-    ("dod-contracts", "DoD contracts", "Military", "military", "official",
-     "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=400&Site=945&max=15", "rss"),
-    ("janes", "Janes defence headlines", "Military", "military", "outlet", "https://www.janes.com/feeds/news", "rss"),
-    ("mee", "Middle East Eye", "Conflict", "conflict", "outlet", "https://www.middleeasteye.net/rss", "rss"),
-    ("rferl", "Radio Free Europe / Radio Liberty", "News", "news", "outlet", "https://www.rferl.org/api/z-pqpiev-q", "rss"),
-    ("rfa", "Radio Free Asia", "News", "news", "outlet", "https://www.rfa.org/english/RSS", "rss"),
-    ("voa", "Voice of America", "News", "news", "outlet", "https://www.voanews.com/api/z-$gim_rqo", "rss"),
-    ("reuters", "Reuters World News", "News", "news", "wire",
-     "https://www.reutersagency.com/feed/?best-topics=world-news&post_type=best", "rss"),
     # Tried and refused or missing from a data-centre address (may work from a home connection): ISW (403), Times of Israel
     # (403), CISA (403), FEMA (404), Focus Taiwan (404), Stars and Stripes (404), Xinhua (http only).
     ("isw", "Institute for the Study of War", "Conflict", "conflict", "outlet", "https://understandingwar.org/feed"),
     ("toi", "Times of Israel", "Conflict", "conflict", "outlet", "https://www.timesofisrael.com/feed/"),
     ("cisa", "CISA cyber advisories", "Hazards", "news", "official", "https://www.cisa.gov/cybersecurity-advisories/all.xml"),
     ("stripes", "Stars and Stripes", "Military", "military", "outlet", "https://www.stripes.com/feeds/rss/"),
+    # From the owner's second list: wrong or retired addresses (404 or "Invalid url"). The assistant can find the right ones.
+    ("janes", "Janes defence headlines", "Military", "military", "outlet", "https://www.janes.com/feeds/news"),
+    ("climate", "NOAA Climate.gov news", "Hazards", "news", "official", "https://www.climate.gov/news-features/feed"),
+    ("reuters", "Reuters World News", "News", "news", "wire",
+     "https://www.reutersagency.com/feed/?best-topics=world-news&post_type=best"),
+    ("nws-us", "NWS active alerts (all US)", "Hazards", "weather", "official", "https://alerts.weather.gov/cap/us.php?x=0"),
+    ("rferl", "Radio Free Europe / Radio Liberty", "News", "news", "outlet", "https://www.rferl.org/api/z-pqpiev-q"),
+    ("voa", "Voice of America", "News", "news", "outlet", "https://www.voanews.com/api/z-$gim_rqo"),
 ]
 
 
