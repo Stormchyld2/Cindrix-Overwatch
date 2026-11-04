@@ -86,7 +86,7 @@ def install(root, say=None, get=_get, run=subprocess.run):
     proc = subprocess.Popen(cmd) if run is subprocess.run else None
     if proc is None:
         run(cmd)
-    deadline = time.monotonic() + 420
+    deadline = time.monotonic() + (420 if "portable" not in name else 90)
     while time.monotonic() < deadline and not firefox_path(root):
         if proc is not None and proc.poll() not in (None, 0) and not firefox_path(root):
             break
@@ -100,7 +100,13 @@ def install(root, say=None, get=_get, run=subprocess.run):
         pass
     p = firefox_path(root)
     if not p:
-        raise RuntimeError("The installer ran but Tor Browser was not found afterwards.")
+        seen = []
+        for base, dirs, files in os.walk(root):
+            seen += [os.path.join(base, n)[len(root):] for n in dirs + files]
+            if len(seen) > 25:
+                break
+        rc = proc.poll() if proc is not None else "n/a"
+        raise RuntimeError(f"The installer ran (exit {rc}) but Tor Browser was not found afterwards. Seen: {seen[:25]}")
     say(f"Tor Browser {v} is ready")
     return p
 
