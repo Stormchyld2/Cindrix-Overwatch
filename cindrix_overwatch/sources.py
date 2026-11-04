@@ -74,29 +74,12 @@ CANDIDATES = [
 # Early-warning candidates being tested from a real runner (see tests/check_feeds.py). Only ones that fetch and read
 # correctly get promoted into BUILTIN. Each is (id, name, group, kind, trust, url).
 TRIAL = [
-    ("usni", "USNI News (fleet and carrier tracker)", "Military", "military", "outlet", "https://news.usni.org/feed"),
-    ("stripes", "Stars and Stripes", "Military", "military", "outlet", "https://www.stripes.com/feeds/rss/"),
-    ("defnews", "Defense News", "Military", "military", "outlet", "https://www.defensenews.com/arc/outboundfeeds/rss/"),
-    ("breaking", "Breaking Defense", "Military", "military", "outlet", "https://breakingdefense.com/feed/"),
-    ("twz", "The War Zone", "Military", "military", "outlet", "https://www.twz.com/feed"),
-    ("milt", "Military Times", "Military", "military", "outlet",
-     "https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml"),
+    # Tried and refused or missing from a data-centre address (may work from a home connection): ISW (403), Times of Israel
+    # (403), CISA (403), FEMA (404), Focus Taiwan (404), Stars and Stripes (404), Xinhua (http only).
     ("isw", "Institute for the Study of War", "Conflict", "conflict", "outlet", "https://understandingwar.org/feed"),
-    ("crisis", "Crisis Group (CrisisWatch)", "Conflict", "conflict", "outlet", "https://www.crisisgroup.org/rss"),
-    ("kyiv", "Kyiv Independent", "Conflict", "conflict", "outlet", "https://kyivindependent.com/news-archive/rss/"),
     ("toi", "Times of Israel", "Conflict", "conflict", "outlet", "https://www.timesofisrael.com/feed/"),
-    ("scmp", "South China Morning Post (Asia)", "News", "news", "outlet", "https://www.scmp.com/rss/91/feed"),
-    ("taiwan", "Focus Taiwan", "News", "news", "wire", "https://focustaiwan.tw/rss/aall.xml"),
-    ("japan", "Japan Times", "News", "news", "outlet", "https://www.japantimes.co.jp/feed/"),
-    ("yonhap", "Yonhap (Korea)", "News", "news", "wire", "https://en.yna.co.kr/RSS/news.xml"),
-    ("travel", "State Dept travel advisories", "Hazards", "news", "official", "https://travel.state.gov/_res/rss/TAsTWs.xml"),
     ("cisa", "CISA cyber advisories", "Hazards", "news", "official", "https://www.cisa.gov/cybersecurity-advisories/all.xml"),
-    ("fema", "FEMA disaster declarations", "Hazards", "hazard", "official", "https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries.rss"),
-    ("ap", "AP top news", "News", "news", "wire", "https://feedx.net/rss/ap.xml"),
-    ("cbs", "CBS World", "News", "news", "outlet", "https://www.cbsnews.com/latest/rss/world"),
-    ("france24", "France 24", "News", "news", "outlet", "https://www.france24.com/en/rss"),
-    ("tass", "TASS (Russian state view)", "News", "news", "outlet", "https://tass.com/rss/v2.xml"),
-    ("xinhua", "Xinhua (Chinese state view)", "News", "news", "outlet", "http://www.xinhuanet.com/english/rss/worldrss.xml"),
+    ("stripes", "Stars and Stripes", "Military", "military", "outlet", "https://www.stripes.com/feeds/rss/"),
 ]
 
 
@@ -171,6 +154,9 @@ ONION_OUTLETS = [
 
 # Left out because they are not valid onion addresses (a current one is exactly 56 characters before .onion; these were
 # 57, 55 and 55): CIA, Radio Free Asia, Voice of America. Paste the right ones from each site's own page.
+# Reached through Tor from a CI runner on 2026-11-04 (the others did not answer then; a mirror can be down for a while).
+REACHED_ONIONS = {"BBC News", "Deutsche Welle"}
+
 SUPPLIED_ONIONS = {
     "BBC News": "https://bbcnewsd73hkzno2ini43t4gblxvycyac5aw4gnv7t2rccijh7745uqd.onion",
     "Deutsche Welle": "https://dwnewsgngmhlplxy6o2twtfgjnrnjxbegbwqx6wnotdhkzt562tszfid.onion",

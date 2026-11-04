@@ -41,8 +41,16 @@ def is_deployment(item):
     return bool(DEPLOY_RE.search(item.title)) and item.kind in ("military", "conflict", "news")
 
 
+LEVEL_RE = re.compile(r"Level ([1-4])\b")
+
+
 def classify(item):
     """Gives a general news headline a more useful kind. Sources with a set kind keep it."""
+    if item.source_id == "travel":
+        m = LEVEL_RE.search(item.title)
+        if m:
+            item.severity = {"4": 3, "3": 2, "2": 1}.get(m.group(1), 0)
+        return item
     if item.kind != "news":
         return item
     t = item.title

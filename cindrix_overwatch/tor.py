@@ -121,7 +121,13 @@ def http_get(url, proxy, timeout=45, max_bytes=5_000_000, hops=4):
     s = socks5_connect(host, u.port or (443 if https else 80), proxy, timeout)
     try:
         if https:
-            s = ssl.create_default_context().wrap_socket(s, server_hostname=host)
+            ctx = ssl.create_default_context()
+            if is_onion_host(host):
+                # An onion address is the service's own public key, and Tor already proves you reached it, so a web
+                # certificate adds nothing (most onion sites use self-signed ones). Normal websites stay fully verified.
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+            s = ctx.wrap_socket(s, server_hostname=host)
         path = (u.path or "/") + ("?" + u.query if u.query else "")
         req = (f"GET {path} HTTP/1.1\r\nHost: {u.netloc}\r\nUser-Agent: {UA}\r\n"
                "Accept: text/html,application/rss+xml,application/atom+xml,application/xml,*/*;q=0.8\r\n"

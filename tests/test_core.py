@@ -546,3 +546,12 @@ class OutletsList(unittest.TestCase):
         c.remove_outlet("My site")
         self.assertEqual(len(c.outlets()), n)
         c.close()
+
+
+class TravelLevels(unittest.TestCase):
+    def test_level_sets_severity(self):
+        for title, sev in (("Iran - Level 4: Do Not Travel", 3), ("Mali - Level 3: Reconsider Travel", 2),
+                           ("France - Level 2: Exercise Increased Caution", 1), ("Japan - Level 1: Exercise Normal Precautions", 0)):
+            it = Item("travel", "State Dept", "conflict", "official", title)
+            scoring.classify(it)
+            self.assertEqual(it.severity, sev, title)

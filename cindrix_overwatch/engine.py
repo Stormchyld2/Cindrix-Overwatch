@@ -116,7 +116,8 @@ class Controller:
             if name in saved:
                 src, addr = "set by you", saved[name]
             elif name in sources.SUPPLIED_ONIONS:
-                src, addr = "supplied, not tested yet", sources.SUPPLIED_ONIONS[name]
+                src = "supplied, reached when tested" if name in sources.REACHED_ONIONS else "supplied, did not answer when tested"
+                addr = sources.SUPPLIED_ONIONS[name]
             else:
                 src, addr = "none yet", ""
             out.append({"name": name, "home": home, "kind": kind, "onion": addr, "origin": src, "custom": False})
