@@ -76,6 +76,9 @@ jobs:
           python-version: "3.12"
       - name: Fetch every real source and list military feed links
         run: python -m tests.check_feeds
+      - name: Feed assistant check on sites with wrong addresses
+        continue-on-error: true
+        run: python -m tests.check_assistant
       - name: Tor check (onion addresses from the outlets' own sites, then a real fetch through Tor)
         continue-on-error: true
         run: |
