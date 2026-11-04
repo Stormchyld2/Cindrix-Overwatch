@@ -1,0 +1,25 @@
+name: map-data
+# One-off helper: downloads the Natural Earth land outline (public domain) and commits it as the map's data.
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  land:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download and convert
+        run: |
+          curl -fsSL -o ne_110m_land.geojson https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_land.geojson
+          python tools/make_land.py ne_110m_land.geojson cindrix_overwatch/data/land.json
+      - name: Commit
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add cindrix_overwatch/data/land.json
+          git commit -m "Add Natural Earth land outline for the map" || echo "nothing to commit"
+          git push

@@ -1,0 +1,64 @@
+name: build-windows
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Window smoke test
+        run: python -m tests.smoke_ui
+      - name: Build exe
+        shell: bash
+        run: |
+          pip install pyinstaller
+          VER=$(python -c "from cindrix_overwatch import __version__ as v; print(v)")
+          pyinstaller --onefile --windowed --icon cindrix_overwatch/data/icon.ico --name "CindrixOverwatch-$VER-windows" \
+            --add-data "cindrix_overwatch/data;cindrix_overwatch/data" run_overwatch.py
+          ls -l dist/
+      - name: Upload the exe (plain file, not zipped)
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/*.exe
+          archive: false
+      - name: Put the download links at the top of the run page
+        shell: bash
+        env:
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          {
+            echo "## Cindrix Overwatch build"
+            echo ""
+            echo "### [Download the exe from this run]($ARTIFACT_URL)"
+            echo ""
+            echo "Latest build on the Releases page: https://github.com/${GITHUB_REPOSITORY}/releases/tag/latest"
+            echo ""
+            echo "Windows may warn \"unknown publisher\" because the app is not code-signed. Choose More info, then Run anyway."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish the exe as the latest release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest dist/*.exe --target "$GITHUB_SHA" \
+            --title "Cindrix Overwatch: latest build" \
+            --notes "Built from commit ${GITHUB_SHA::7}. Windows may warn because the app is not code-signed: choose More info, then Run anyway."
+  feed-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch every real source and list military feed links
+        run: python -m tests.check_feeds
