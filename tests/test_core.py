@@ -555,3 +555,12 @@ class TravelLevels(unittest.TestCase):
             it = Item("travel", "State Dept", "conflict", "official", title)
             scoring.classify(it)
             self.assertEqual(it.severity, sev, title)
+
+
+class EarlyWarningFeedsPresent(unittest.TestCase):
+    def test_promoted_feeds_are_really_in_the_list(self):
+        ids = {s["id"] for s in sources.BUILTIN}
+        for need in ("usni", "defnews", "breaking", "twz", "milt", "crisis", "kyiv", "mee", "travel", "scmp", "japan",
+                     "yonhap", "rfa", "rferl", "voa", "cbs", "france24", "tass", "nhc", "usgs-sig", "climate"):
+            self.assertIn(need, ids)
+        self.assertEqual(len(ids), len(sources.BUILTIN))
