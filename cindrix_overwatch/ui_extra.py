@@ -16,14 +16,14 @@ def _entry(parent, var, width):
                     insertbackground=theme.BONE, relief="flat")
 
 
-def outlet_home(text):
-    """If the text names a known outlet, return its website, else None."""
+def outlet_home(text, outlets=None):
+    """If the text names a known site, return its website (or onion address), else None."""
     t = text.strip().lower()
     if not t or "." in t:
         return None
-    for name, home, _ in sources.ONION_OUTLETS:
-        if t in name.lower():
-            return home
+    for o in outlets if outlets is not None else [{"name": n, "home": h, "onion": ""} for n, h, _ in sources.ONION_OUTLETS]:
+        if t in o["name"].lower():
+            return o["home"] or o["onion"]
     return None
 
 
@@ -109,7 +109,7 @@ class FeedAssistant:
 
     def find(self):
         text = self.addr.get().strip()
-        target = outlet_home(text) or text
+        target = outlet_home(text, self.c.outlets()) or text
         self.log.configure(state="normal")
         self.log.delete("1.0", "end")
         self.log.configure(state="disabled")
@@ -251,8 +251,8 @@ def build_tor_tab(app, p):
     app.label(p, "Outlets reported to run an official onion service", app.f_big).grid(row=1, column=0, sticky="w", padx=16)
     app.label(p, "No onion addresses are built in. Press Look up to read the address from the outlet's own website, "
                  "then Connect to add its feed.", app.f_small, theme.MUTED).grid(row=2, column=0, sticky="w", padx=16)
-    app.onion_tree = ttk.Treeview(p, columns=("site", "onion"), show="tree headings", height=9)
-    for col, text, w in (("#0", "Outlet", 240), ("site", "Website", 260), ("onion", "Onion address", 520)):
+    app.onion_tree = ttk.Treeview(p, columns=("site", "onion", "origin"), show="tree headings", height=9)
+    for col, text, w in (("#0", "Site", 230), ("site", "Website", 230), ("onion", "Onion address", 470), ("origin", "Onion status", 150)):
         app.onion_tree.heading(col, text=text)
         app.onion_tree.column(col, width=w, anchor="w")
     app.onion_tree.grid(row=3, column=0, sticky="nsew", padx=14, pady=6)
@@ -271,9 +271,19 @@ def build_tor_tab(app, p):
     app.btn(row3, "Save address", app._save_onion, primary=True, small=True).grid(row=1, column=1, padx=4, pady=(0, 10))
     app.btn(row3, "Clear", app._clear_onion, small=True).grid(row=1, column=2, padx=4, pady=(0, 10))
     app.onion_tree.bind("<<TreeviewSelect>>", app._onion_selected)
+    row4 = tk.Frame(p, bg=theme.PANEL)
+    row4.grid(row=6, column=0, sticky="ew", padx=14, pady=(0, 6))
+    app.label(row4, "Add a site of your own (website, onion address, or both)", app.f_bold, bg=theme.PANEL).grid(
+        row=0, column=0, columnspan=8, sticky="w", padx=12, pady=(8, 2))
+    app.new_name, app.new_home, app.new_onion = tk.StringVar(), tk.StringVar(), tk.StringVar()
+    for i, (lab, var, wd) in enumerate((("Name", app.new_name, 18), ("Website", app.new_home, 30), ("Onion", app.new_onion, 40))):
+        app.label(row4, lab, app.f_small, theme.MUTED, bg=theme.PANEL).grid(row=1, column=i * 2, sticky="w", padx=(12, 4))
+        _entry(row4, var, wd).grid(row=1, column=i * 2 + 1, sticky="w", ipady=4, pady=(0, 10))
+    app.btn(row4, "Add site", app._add_outlet, primary=True, small=True).grid(row=1, column=6, padx=6, pady=(0, 10))
+    app.btn(row4, "Remove selected (yours only)", app._remove_outlet, small=True).grid(row=1, column=7, padx=4, pady=(0, 10))
     app.tor_note = app.label(p, "Paste the address from the outlet's own page (a long name ending in .onion). It is checked "
                                 "for shape only; nothing is contacted until you connect its feed.", app.f_small, theme.MUTED)
-    app.tor_note.grid(row=6, column=0, sticky="w", padx=16, pady=(0, 10))
+    app.tor_note.grid(row=7, column=0, sticky="w", padx=16, pady=(0, 10))
 
 
 def open_tor_browser(url="", root=""):

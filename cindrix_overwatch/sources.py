@@ -143,9 +143,9 @@ def all_sources(settings):
     return [s for s in srcs if s["id"] not in disabled]
 
 
-# Outlets reported (Wikipedia's list of Tor onion services and the Freedom of the Press Foundation) to run an official
-# onion service. NO onion addresses are stored here: an address is read from the outlet's own site (the Onion-Location
-# header) or pasted by you from the outlet's own page. 'home' is the normal website used to find the feed.
+# Sites worth reading, with the onion address where the owner supplied one. The onion addresses below were pasted in by
+# the owner (2026-11-04); they are checked for shape only until the Tor check in CI reaches them (tests/check_tor.py).
+# 'home' is the normal website used to find the feed. Anything you add yourself is kept in your settings.
 ONION_OUTLETS = [
     ("BBC News", "https://www.bbc.com/news", "news"),
     ("Deutsche Welle", "https://www.dw.com/en/", "news"),
@@ -156,4 +156,27 @@ ONION_OUTLETS = [
     ("Radio Free Europe / Radio Liberty", "https://www.rferl.org/", "news"),
     ("Voice of America", "https://www.voanews.com/", "news"),
     ("taz (Die Tageszeitung)", "https://taz.de/", "news"),
+    ("The Associated Press", "https://apnews.com", "news"),
+    ("Reuters", "https://reuters.com", "news"),
+    ("Liveuamap", "https://liveuamap.com", "conflict"),
+    ("U.S. European Command (EUCOM)", "https://eucom.mil", "military"),
+    ("U.S. Department of Defense", "https://defense.gov", "military"),
+    ("NOAA / National Weather Service", "https://weather.gov", "hazard"),
+    ("USGS Earthquake Hazards", "https://usgs.gov", "hazard"),
+    ("GDACS", "https://gdacs.org", "hazard"),
+    ("Central Intelligence Agency (CIA)", "https://www.cia.gov/", "news"),
+    ("Current Time TV", "https://www.currenttime.tv/", "news"),
+    ("Radio Free Asia", "https://www.rfa.org/english/", "news"),
 ]
+
+# Left out because they are not valid onion addresses (a current one is exactly 56 characters before .onion; these were
+# 57, 55 and 55): CIA, Radio Free Asia, Voice of America. Paste the right ones from each site's own page.
+SUPPLIED_ONIONS = {
+    "BBC News": "https://bbcnewsd73hkzno2ini43t4gblxvycyac5aw4gnv7t2rccijh7745uqd.onion",
+    "Deutsche Welle": "https://dwnewsgngmhlplxy6o2twtfgjnrnjxbegbwqx6wnotdhkzt562tszfid.onion",
+    "The Guardian": "https://guardian2zotagl6tmjucg3lrhxdk4dw3lhbqnkvvkywawy3oqfoprid.onion",
+    "The Intercept": "https://27m3p2uv7igmj6kvd4ql3cct5h3sdwrsajovkkndeufumzyfhlfev4qd.onion",
+    "ProPublica": "https://p53lf57qovyuvwsc6xnrppyply3vtqm7l6pcobkmyqsiofyeznfu5uqd.onion",
+    "Radio Free Europe / Radio Liberty": "https://rferlo2zxgv23tct66v45s5mecftol5vod3hf4rqbipfp46fqu2q56ad.onion",
+    "Current Time TV": "https://currtv242aqatxhyqfyh3mtq2ubzxz7crvj7aon3zccrnwatc5gugvqd.onion",
+}

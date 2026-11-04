@@ -19,6 +19,12 @@ def main():
         sys.exit(1)
     status, text = tor.tor_fetch("https://check.torproject.org/api/ip", c.tor.proxy())
     print("check.torproject.org ->", status, text[:80])
+    print("\nOnion addresses in the list, fetched through Tor:")
+    for o in c.outlets():
+        if not o["onion"]:
+            continue
+        st, txt = tor.tor_fetch(o["onion"], c.tor.proxy(), timeout=60)
+        print(f"  {o['name']:36} {o['origin']:26} -> {st or 'no answer'} {'' if st else txt[:60]}")
     ok = 0
     for name, loc in list(found.items())[:4]:
         try:

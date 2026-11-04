@@ -20,7 +20,7 @@ from .store import Store
 MAX_BYTES = 5_000_000
 KEEP_DAYS = 30
 DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15,
-                    "onion_addresses": {}}
+                    "onion_addresses": {}, "my_outlets": []}
 
 
 ACCEPT = "application/rss+xml, application/atom+xml, application/xml, application/json, text/xml, */*;q=0.8"
@@ -105,6 +105,53 @@ class Controller:
         if tor.is_onion_url(url) or (use_tor and self.tor.proxy()):
             return self.tor.fetch(url)
         return default_fetch(url)
+
+    # ----- sites (built in, supplied, and your own) -----
+    def outlets(self):
+        """Every site in the Tor tab: name, home, kind, onion address and where that address came from."""
+        out = []
+        mine = {o["name"]: o for o in self.settings["my_outlets"] if isinstance(o, dict) and o.get("name")}
+        saved = self.settings["onion_addresses"]
+        for name, home, kind in sources.ONION_OUTLETS:
+            if name in saved:
+                src, addr = "set by you", saved[name]
+            elif name in sources.SUPPLIED_ONIONS:
+                src, addr = "supplied, not tested yet", sources.SUPPLIED_ONIONS[name]
+            else:
+                src, addr = "none yet", ""
+            out.append({"name": name, "home": home, "kind": kind, "onion": addr, "origin": src, "custom": False})
+        for o in mine.values():
+            addr = saved.get(o["name"]) or o.get("onion", "")
+            out.append({"name": o["name"], "home": o.get("home", ""), "kind": o.get("kind", "news"), "onion": addr,
+                        "origin": "yours" if addr else "none yet", "custom": True})
+        return out
+
+    def add_outlet(self, name, home="", onion=""):
+        name = (name or "").strip()[:60]
+        if not name:
+            raise ValueError("Give the site a name.")
+        if any(o["name"].lower() == name.lower() for o in self.outlets()):
+            raise ValueError("A site with that name is already in the list.")
+        home = (home or "").strip()
+        if home:
+            home = discover.normalize(home)
+        onion = (onion or "").strip()
+        if onion:
+            if "://" not in onion:
+                onion = "http://" + onion
+            if not tor.is_onion_url(onion):
+                raise ValueError("That is not a valid .onion address. A current one is 56 letters and numbers followed by .onion.")
+        if not home and not onion:
+            raise ValueError("Give a website address, an onion address, or both.")
+        if len(self.settings["my_outlets"]) >= 60:
+            raise ValueError("That is the limit of 60 sites of your own.")
+        self.settings["my_outlets"].append({"name": name, "home": home, "onion": onion, "kind": "news"})
+        self.save_settings()
+
+    def remove_outlet(self, name):
+        self.settings["my_outlets"] = [o for o in self.settings["my_outlets"] if o.get("name") != name]
+        self.settings["onion_addresses"].pop(name, None)
+        self.save_settings()
 
     def set_onion_address(self, name, addr):
         """Saves an onion address typed or pasted by hand. Accepts it with or without http://."""
@@ -325,11 +372,9 @@ class Controller:
                 h = health.get(s["id"])
                 st = "not checked yet" if not h else ("working" if h["ok"] else "problem: " + (h["error"] or ""))
                 w.writerow([s["name"], s["group"], s["kind"], s["trust"], s["url"], s["parser"], s["every"], st, ""])
-            for name, home, kind in sources.ONION_OUTLETS:
-                addr = self.settings["onion_addresses"].get(name, "")
-                w.writerow([name, "Tor outlets", kind, "outlet", addr or home, "rss", 30,
-                            "onion address found" if addr else "needs Tor / onion address not looked up",
-                            "Reported to run an official onion service; use the assistant to find the feed"])
+            for o in self.outlets():
+                w.writerow([o["name"], "Sites and onion addresses", o["kind"], "outlet", o["home"], "website", "",
+                            "onion: " + o["origin"], o["onion"]])
         return path
 
     def clear_history(self):

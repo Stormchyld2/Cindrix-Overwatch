@@ -447,7 +447,7 @@ class ExportList(unittest.TestCase):
         rows = list(_csv.reader(open(p, encoding="utf-8-sig")))
         self.assertEqual(rows[0][0], "Name")
         self.assertGreater(len(rows), 25)
-        self.assertTrue(any(r[1] == "Tor outlets" for r in rows))
+        self.assertTrue(any(r[1] == "Sites and onion addresses" for r in rows))
         c.close()
 
 
@@ -523,4 +523,26 @@ class Deployments(unittest.TestCase):
         self.assertEqual(len(c.feed(deploy_only=True)), len(c.feed()))
         lights = {k: v for k, _, v, _, _ in c.indicators()}
         self.assertIn("deploy", lights)
+        c.close()
+
+
+class OutletsList(unittest.TestCase):
+    def test_supplied_addresses_are_well_formed(self):
+        for name, addr in sources.SUPPLIED_ONIONS.items():
+            self.assertTrue(tor.is_onion_url(addr), name)
+
+    def test_add_remove_and_validation(self):
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        n = len(c.outlets())
+        c.add_outlet("My site", "example.org", ONION)
+        self.assertEqual(len(c.outlets()), n + 1)
+        mine = [o for o in c.outlets() if o["name"] == "My site"][0]
+        self.assertTrue(mine["custom"])
+        self.assertEqual(mine["home"], "https://example.org/")
+        self.assertEqual(mine["onion"], "http://" + ONION)
+        for bad in (("", "example.org", ""), ("X", "", ""), ("X", "", "short.onion"), ("My site", "example.org", "")):
+            with self.assertRaises(ValueError):
+                c.add_outlet(*bad)
+        c.remove_outlet("My site")
+        self.assertEqual(len(c.outlets()), n)
         c.close()

@@ -13,7 +13,7 @@ from tkinter import messagebox, ttk
 from . import __version__, geo, theme
 from .engine import Controller
 from .mapview import WorldMap
-from . import sources as _sources, tor as _tor, torbrowser, ui_extra
+from . import tor as _tor, torbrowser, ui_extra
 from .model import KIND_LABELS, SEVERITY_WORDS, TRUST_LABELS
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
@@ -539,11 +539,11 @@ class App:
 
     def _render_tor(self):
         self.tor_status.configure(text=self.c.tor.describe())
-        have = self.c.settings["onion_addresses"]
         sel = self.onion_tree.selection()
         self.onion_tree.delete(*self.onion_tree.get_children())
-        for name, home, _ in _sources.ONION_OUTLETS:
-            self.onion_tree.insert("", "end", iid=name, text=name, values=(home, have.get(name, "not looked up yet")))
+        for o in self.c.outlets():
+            self.onion_tree.insert("", "end", iid=o["name"], text=o["name"],
+                                   values=(o["home"], o["onion"] or "(none: paste one below)", o["origin"]))
         if sel and self.onion_tree.exists(sel[0]):
             self.onion_tree.selection_set(sel[0])
 
@@ -552,15 +552,15 @@ class App:
         if not sel:
             self.tor_note.configure(text="Pick an outlet in the list first.", fg=theme.AMBER)
             return None
-        for name, home, kind in _sources.ONION_OUTLETS:
-            if name == sel[0]:
-                return name, home, kind
+        for o in self.c.outlets():
+            if o["name"] == sel[0]:
+                return o["name"], o["home"] or o["onion"], o["kind"]
         return None
 
     def _onion_selected(self, event=None):
         sel = self.onion_tree.selection()
         if sel:
-            self.onion_var.set(self.c.settings["onion_addresses"].get(sel[0], ""))
+            self.onion_var.set(next((o["onion"] for o in self.c.outlets() if o["name"] == sel[0]), ""))
 
     def _save_onion(self):
         o = self._picked_outlet()
@@ -574,6 +574,27 @@ class App:
         self.onion_var.set(saved)
         self.tor_note.configure(text="Saved. Use Connect its feed (via Tor) when Tor is running." if saved else "Cleared.",
                                 fg=theme.GREEN)
+        self._render_tor()
+
+    def _add_outlet(self):
+        try:
+            self.c.add_outlet(self.new_name.get(), self.new_home.get(), self.new_onion.get())
+        except ValueError as e:
+            self.tor_note.configure(text=str(e), fg=theme.RED)
+            return
+        for v in (self.new_name, self.new_home, self.new_onion):
+            v.set("")
+        self.tor_note.configure(text="Added to the list. Pick it and use Connect its feed.", fg=theme.GREEN)
+        self._render_tor()
+
+    def _remove_outlet(self):
+        o = self._picked_outlet()
+        if not o:
+            return
+        if not any(x["name"] == o[0] and x["custom"] for x in self.c.outlets()):
+            self.tor_note.configure(text="Only sites you added can be removed. Built-in ones can be left alone.", fg=theme.AMBER)
+            return
+        self.c.remove_outlet(o[0])
         self._render_tor()
 
     def _clear_onion(self):
@@ -602,7 +623,7 @@ class App:
         if not o:
             return
         name, home, _ = o
-        addr = self.c.settings["onion_addresses"].get(name) if via_tor else home
+        addr = next((o["onion"] for o in self.c.outlets() if o["name"] == name), "") if via_tor else home
         if via_tor and not addr:
             self.tor_note.configure(text="Paste its onion address in the box below first, then Save address.", fg=theme.AMBER)
             return
@@ -611,7 +632,7 @@ class App:
     def _outlet_reader(self):
         o = self._picked_outlet()
         if o:
-            ui_extra.ReaderWindow(self, self.c.settings["onion_addresses"].get(o[0]) or o[1])
+            ui_extra.ReaderWindow(self, next((x["onion"] for x in self.c.outlets() if x["name"] == o[0]), "") or o[1])
 
     def _open_tor_browser(self, url=""):
         if not ui_extra.open_tor_browser(url, self.c.root):
