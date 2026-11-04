@@ -40,6 +40,7 @@ def main():
     with tempfile.TemporaryDirectory() as d:
         # the fake clock is the sample clock so the sample items count as recent
         c = engine.Controller(d, fetch, lambda: S.NOW)
+        c.host_gaps = {}
         app = App(controller=c, splash=False, auto=False)
         pump(app)
         assert len(app.tiles) == 8

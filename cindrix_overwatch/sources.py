@@ -39,14 +39,10 @@ BUILTIN = [
     _s("dvids", "DVIDS (all services)", "Military", "military", "official", "https://www.dvidshub.net/rss/news"),
     _s("defense", "Defense Department", "Military", "military", "official",
        "https://www.defense.gov" + _dod(945)),
-    _s("navy", "US Navy", "Military", "military", "official", "https://www.navy.mil" + _dod(1)),
     _s("airforce", "US Air Force", "Military", "military", "official", "https://www.af.mil" + _dod(1)),
     _s("centcom", "US Central Command", "Military", "military", "official", "https://www.centcom.mil" + _dod(808)),
-    _s("eucom", "US European Command", "Military", "military", "official", "https://www.eucom.mil" + _dod(1)),
-    _s("indopacom", "US Indo-Pacific Command", "Military", "military", "official", "https://www.pacom.mil" + _dod(1)),
     _s("ukmod", "UK Ministry of Defence", "Military", "military", "official",
        "https://www.gov.uk/government/organisations/ministry-of-defence.atom"),
-    _s("nato", "NATO", "Military", "military", "official", "https://www.nato.int/cps/en/natohq/news.rss"),
     # ----- world news and crisis reporting -----
     _s("bbc", "BBC World", "News", "news", "wire", "https://feeds.bbci.co.uk/news/world/rss.xml", every=20),
     _s("aljazeera", "Al Jazeera", "News", "news", "wire", "https://www.aljazeera.com/xml/rss/all.xml", every=20),
@@ -54,14 +50,24 @@ BUILTIN = [
     _s("npr", "NPR World", "News", "news", "wire", "https://feeds.npr.org/1004/rss.xml", every=30),
     _s("un", "UN News", "News", "news", "official", "https://news.un.org/feed/subscribe/en/news/all/rss.xml"),
     _s("reliefweb", "ReliefWeb", "News", "news", "official", "https://reliefweb.int/updates/rss.xml", every=60),
-    _s("who", "WHO outbreak news", "Health", "health", "official",
-       "https://www.who.int/feeds/entity/csr/don/en/rss.xml", every=120),
+    _s("who", "WHO news", "Health", "health", "official",
+       "https://www.who.int/rss-feeds/news-english.xml", every=120),
     _s("gdelt-conflict", "GDELT: conflict", "News", "conflict", "outlet",
        "https://api.gdeltproject.org/api/v2/doc/doc?query=%28airstrike%20OR%20missile%20OR%20shelling%20OR%20offensive%29%20sourcelang%3Aeng"
        "&mode=artlist&maxrecords=60&format=json&sort=datedesc&timespan=6h", "gdelt", 30),
     _s("gdelt-military", "GDELT: military", "News", "military", "outlet",
        "https://api.gdeltproject.org/api/v2/doc/doc?query=%28navy%20OR%20warship%20OR%20%22air%20force%22%20OR%20troops%20OR%20nato%29%20sourcelang%3Aeng"
        "&mode=artlist&maxrecords=60&format=json&sort=datedesc&timespan=6h", "gdelt", 30),
+]
+
+
+# Tried from a GitHub runner and not usable yet: the Navy and Indo-Pacific feed addresses returned nothing,
+# EUCOM and several .mil home pages refuse data-centre addresses (HTTP 403), NATO's guessed address was 404.
+# They may work from a home connection. Add them as custom feeds to try; DVIDS already carries all services.
+CANDIDATES = [
+    ("US Navy", "https://www.navy.mil" + _dod(1)),
+    ("US European Command", "https://www.eucom.mil" + _dod(1)),
+    ("US Indo-Pacific Command", "https://www.pacom.mil" + _dod(1)),
 ]
 
 

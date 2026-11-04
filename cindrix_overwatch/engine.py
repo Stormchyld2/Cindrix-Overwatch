@@ -7,7 +7,9 @@ import json
 import os
 import time
 import urllib.error
+import threading
 import urllib.request
+from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor
 
 from . import feeds, geo, scoring, sources
@@ -22,7 +24,8 @@ def default_fetch(url, timeout=25):
     """Returns (status, text). Only https is allowed, including after redirects."""
     if not url.lower().startswith("https://"):
         return 0, ""
-    req = urllib.request.Request(url, headers={"User-Agent": sources.UA, "Accept": "*/*"})
+    req = urllib.request.Request(url, headers={"User-Agent": sources.UA,
+                                         "Accept": "application/rss+xml, application/atom+xml, application/xml, application/json, text/xml, */*;q=0.8"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             if not r.geturl().lower().startswith("https://"):
@@ -41,6 +44,21 @@ class Controller:
         self.settings_path = os.path.join(root, "settings.json")
         self.store = Store(os.path.join(root, "overwatch.db"))
         self.settings = self._load_settings()
+        # GDELT allows about one request every five seconds, so asks to that host are spaced out.
+        self.host_gaps = {"api.gdeltproject.org": 5.5}
+        self._host_next, self._host_lock = {}, threading.Lock()
+
+    def _throttle(self, url):
+        host = urlparse(url).hostname
+        gap = self.host_gaps.get(host)
+        if not gap:
+            return
+        with self._host_lock:
+            t = time.monotonic()
+            start = max(t, self._host_next.get(host, 0))
+            self._host_next[host] = start + gap
+        if start > t:
+            time.sleep(start - t)
 
     # ----- settings -----
     def _load_settings(self):
@@ -96,6 +114,7 @@ class Controller:
         return sources.all_sources(self.settings)
 
     def _pull(self, src):
+        self._throttle(src["url"])
         status, text = self.fetch(src["url"])
         if status != 200:
             raise feeds.FeedError("Could not reach it" + (f" (HTTP {status})" if status else (f": {text}" if text else "")))

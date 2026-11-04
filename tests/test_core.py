@@ -139,6 +139,7 @@ class Engine(unittest.TestCase):
                 return 200, "<html>blocked</html>"
             return 503, ""
         self.c = engine.Controller(self.tmp.name, fetch, lambda: self.t[0])
+        self.c.host_gaps = {}
 
     def tearDown(self):
         self.c.close()
@@ -214,6 +215,16 @@ class Engine(unittest.TestCase):
         ev.set()
         r = self.c.refresh(cancel=ev)
         self.assertEqual(r["ok"], 0)
+
+    def test_same_host_requests_are_spaced(self):
+        stamps = []
+        c2 = engine.Controller(tempfile.mkdtemp(), lambda u: (stamps.append(__import__("time").monotonic()) or (503, "")),
+                               lambda: S.NOW)
+        c2.host_gaps = {"api.gdeltproject.org": 0.3}
+        c2.refresh()
+        gd = sorted(t for t in stamps)[-2:]
+        self.assertTrue(len(stamps) > 2)
+        c2.close()
 
     def test_default_fetch_refuses_http(self):
         self.assertEqual(engine.default_fetch("http://example.com/x"), (0, ""))
