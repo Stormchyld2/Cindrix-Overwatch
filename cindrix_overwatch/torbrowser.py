@@ -81,13 +81,23 @@ def install(root, say=None, get=_get, run=subprocess.run):
         cmd = [exe, "-y", "-o" + dest]
     else:
         cmd = [exe, "/S", "/D=" + dest]
+    say("Installer: " + name)
+    import time
+    proc = subprocess.Popen(cmd) if run is subprocess.run else None
+    if proc is None:
+        run(cmd)
+    deadline = time.monotonic() + 420
+    while time.monotonic() < deadline and not firefox_path(root):
+        if proc is not None and proc.poll() not in (None, 0) and not firefox_path(root):
+            break
+        time.sleep(2)
+    time.sleep(3)                                  # let the last files finish writing
+    if proc is not None and proc.poll() is None:
+        proc.terminate()                           # some installers linger after the files are in place
     try:
-        run(cmd, timeout=600)
-    finally:
-        try:
-            os.remove(exe)
-        except OSError:
-            pass
+        os.remove(exe)
+    except OSError:
+        pass
     p = firefox_path(root)
     if not p:
         raise RuntimeError("The installer ran but Tor Browser was not found afterwards.")
