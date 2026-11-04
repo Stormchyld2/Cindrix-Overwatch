@@ -26,6 +26,21 @@ SUPPLY_RE = _W("shortage", "fuel prices", "food prices", "supply chain", "ration
 SEVERE_RE = _W("nuclear", "invasion", "mass casualt", "explosion", "killed", "dead\\b", "massacre", "chemical")
 
 
+# Words that point to forces being moved, raised or readied (not just "military news"). Used for the Deployments
+# filter and the Force movements light. These are headline signals; they say what was reported, not what is true.
+DEPLOY_RE = _W("deploys?", "deployed", "deploying", "deployment", "mobili[sz]", "reservists?", "call-?up", "build-?up",
+               "troops (?:to|near|along|on)", "sends? (?:troops|forces|warships|ships|jets|aircraft)", "strike group",
+               "carrier group", "amphibious", "moves? (?:forces|troops|warships)", "reinforce", "redeploy", "dispatch",
+               "no-?fly zone", "notam", "naval exercise", "military exercise", "war games", "blockade", "drawdown",
+               "ordered departure", "evacuat", "martial law", "state of emergency", "conscription", "draft",
+               "troop (?:movement|concentration|buildup)", "border (?:closure|closed)", "airspace (?:closed|closure)",
+               "nuclear (?:alert|readiness|drill|exercise)", "missile (?:test|launch)", "readiness")
+
+
+def is_deployment(item):
+    return bool(DEPLOY_RE.search(item.title)) and item.kind in ("military", "conflict", "news")
+
+
 def classify(item):
     """Gives a general news headline a more useful kind. Sources with a set kind keep it."""
     if item.kind != "news":
@@ -42,6 +57,8 @@ def classify(item):
     if item.kind == "conflict":
         item.severity = max(item.severity, 2 if SEVERE_RE.search(t) else 1)
     elif item.kind in ("health", "hazard"):
+        item.severity = max(item.severity, 1)
+    if is_deployment(item) and item.kind in ("military", "conflict"):
         item.severity = max(item.severity, 1)
     return item
 
@@ -145,6 +162,11 @@ def indicators(items, home_states, now):
     lvl = _level(len(ml), (5, 15, 30))
     out.append(("military", "Military activity", lvl, ("QUIET", "ACTIVE", "BUSY", "HIGH")[lvl],
                 f"{len(ml)} items, 24 h"))
+
+    dp = group([i for i in day if is_deployment(i)])
+    lvl = _level(len(dp), (3, 8, 16))
+    out.append(("deploy", "Force movements", lvl, ("QUIET", "WATCH", "ELEVATED", "HIGH")[lvl],
+                f"{len(dp)} deployment or readiness stories, 24 h" if dp else "No deployment signals"))
 
     sup = [i for i in two if SUPPLY_RE.search(i.title)]
     lvl = _level(len(sup), (2, 5, 10))

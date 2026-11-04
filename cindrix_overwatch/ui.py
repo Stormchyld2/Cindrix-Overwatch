@@ -19,7 +19,7 @@ from .model import KIND_LABELS, SEVERITY_WORDS, TRUST_LABELS
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 FEED_LIMIT = 80
 FEED_CHIPS = [("All", None), ("Military", {"military"}), ("Hazards", {"hazard", "weather", "space", "health"}),
-              ("News", {"news", "conflict"}), ("Home only", "home")]
+              ("News", {"news", "conflict"}), ("Deployments", "deploy"), ("Home only", "home")]
 LAYER_CHIPS = [("Military", "military"), ("Conflict", "conflict"), ("Hazards", "hazard"), ("News", "news")]
 
 
@@ -195,7 +195,7 @@ class App:
         strip = tk.Frame(p, bg=theme.CHARCOAL)
         strip.grid(row=0, column=0, columnspan=3, sticky="ew", padx=10, pady=(8, 4))
         self.tiles = []
-        for i in range(8):
+        for i in range(9):
             strip.columnconfigure(i, weight=1, uniform="tile")
             t = tk.Frame(strip, bg=theme.PANEL)
             t.grid(row=0, column=i, sticky="nsew", padx=4)
@@ -338,8 +338,9 @@ class App:
             w.destroy()
         kinds = self.feed_filter[1]
         home = kinds == "home"
-        items = self.c.feed(kinds=None if home or kinds is None else kinds, home_only=home, text=self.search.get(),
-                            limit=FEED_LIMIT)
+        deploy = kinds == "deploy"
+        items = self.c.feed(kinds=None if home or deploy or kinds is None else kinds, home_only=home, text=self.search.get(),
+                            limit=FEED_LIMIT, deploy_only=deploy)
         self.feed_items = items
         if not items:
             self.label(self.feed_inner, "Nothing here yet. Press Refresh now while online.\nSaved items show even offline.",

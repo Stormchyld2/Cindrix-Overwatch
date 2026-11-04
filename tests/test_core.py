@@ -100,7 +100,7 @@ class Scoring(unittest.TestCase):
         self.assertEqual(ind["weather"][3], "ADVISORY")
         self.assertGreaterEqual(ind["quakes"][2], 1)        # the M4.6 near Charleston
         self.assertEqual(ind["space"][2], 2)     # forecast G2 counts
-        self.assertEqual(len(ind), 8)
+        self.assertEqual(len(ind), 9)
 
     def test_quiet_world(self):
         ind = scoring.indicators([], ["WV"], S.NOW)
@@ -499,3 +499,28 @@ class OnionByHand(unittest.TestCase):
             engine.urllib.request.urlopen = real
             engine.time.sleep = sleep
         self.assertEqual((status, len(calls)), (0, 2))
+
+
+class Deployments(unittest.TestCase):
+    def mk(self, title, kind="news"):
+        return Item("t", "T", kind, "wire", title)
+
+    def test_signals(self):
+        for t in ("US deploys carrier strike group to Eastern Mediterranean", "Russia orders mobilization of reservists",
+                  "Embassy announces ordered departure of non-emergency staff", "Troops to border as tensions rise",
+                  "China announces naval exercise near Taiwan"):
+            self.assertTrue(scoring.is_deployment(self.mk(t)), t)
+        for t in ("Local team wins championship", "Storm brings heavy rain to the coast"):
+            self.assertFalse(scoring.is_deployment(self.mk(t)), t)
+        self.assertFalse(scoring.is_deployment(self.mk("US deploys carrier group", "hazard")))
+
+    def test_light_and_filter(self):
+        d = tempfile.mkdtemp()
+        items = [Item("a", "A", "military", "wire", f"Army deploys battalion number {n} to region {n}x{n}",
+                      ts=S.NOW - 600, uid=f"u{n}") for n in range(5)]
+        c = engine.Controller(d, lambda u: (503, ""), lambda: S.NOW)
+        c.store.upsert(items, S.NOW)
+        self.assertEqual(len(c.feed(deploy_only=True)), len(c.feed()))
+        lights = {k: v for k, _, v, _, _ in c.indicators()}
+        self.assertIn("deploy", lights)
+        c.close()

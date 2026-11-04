@@ -22,7 +22,7 @@ HREF_RE = re.compile(r"""href=["']([^"']+)["']""", re.I)
 
 
 def main():
-    srcs = sources.nws_sources(["WV"]) + sources.BUILTIN
+    srcs = sources.nws_sources(["WV"]) + sources.BUILTIN + sources.trial_sources()
     bad_core = []
     print(f"{'source':16} {'result':10} items  note")
     for s in srcs:

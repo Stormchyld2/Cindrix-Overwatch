@@ -43,7 +43,7 @@ def main():
         c.host_gaps = {}
         app = App(controller=c, splash=False, auto=False)
         pump(app)
-        assert len(app.tiles) == 8
+        assert len(app.tiles) == 9
         assert app.start_refresh(force=True)
         wait_refresh(app)
         assert c.store.count() > 5, c.store.count()

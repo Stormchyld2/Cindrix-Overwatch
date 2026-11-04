@@ -258,7 +258,7 @@ class Controller:
     def all_items(self, hours=72):
         return self.store.items(self.now() - hours * 3600)
 
-    def feed(self, kinds=None, home_only=False, text="", hours=72, limit=300):
+    def feed(self, kinds=None, home_only=False, text="", hours=72, limit=300, deploy_only=False):
         items = scoring.group(self.all_items(hours))
         hs = self.settings["home_states"]
         text = (text or "").strip().lower()
@@ -267,6 +267,8 @@ class Controller:
             if kinds and it.kind not in kinds:
                 continue
             if home_only and not scoring.is_home(it, hs):
+                continue
+            if deploy_only and not scoring.is_deployment(it):
                 continue
             if text and text not in (it.title + " " + it.summary + " " + it.source + " " + it.place).lower():
                 continue
