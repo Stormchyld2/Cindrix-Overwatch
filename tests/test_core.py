@@ -449,3 +449,23 @@ class ExportList(unittest.TestCase):
         self.assertGreater(len(rows), 25)
         self.assertTrue(any(r[1] == "Tor outlets" for r in rows))
         c.close()
+
+
+class CleanEnv(unittest.TestCase):
+    def test_pyinstaller_paths_removed(self):
+        import os, sys
+        old = (getattr(sys, "_MEIPASS", None), os.environ.get("PATH"), os.environ.get("TCL_LIBRARY"))
+        sys._MEIPASS = os.path.join(os.sep, "tmp", "_MEI123")
+        os.environ["PATH"] = os.pathsep.join([sys._MEIPASS, os.path.join(sys._MEIPASS, "sub"), os.sep + "usr"])
+        os.environ["TCL_LIBRARY"] = "x"
+        try:
+            env = tor.clean_env()
+        finally:
+            if old[0] is None:
+                del sys._MEIPASS
+            else:
+                sys._MEIPASS = old[0]
+            os.environ["PATH"] = old[1]
+            os.environ.pop("TCL_LIBRARY", None)
+        self.assertEqual(env["PATH"], os.sep + "usr")
+        self.assertNotIn("TCL_LIBRARY", env)

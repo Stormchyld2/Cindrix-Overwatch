@@ -270,8 +270,4 @@ def open_tor_browser(url="", root=""):
     exe = tor.find_tor_browser(root)
     if not exe:
         return False
-    try:
-        subprocess.Popen([exe] + ([url] if url else []))
-        return True
-    except OSError:
-        return False
+    return tor.start_browser(exe, url)

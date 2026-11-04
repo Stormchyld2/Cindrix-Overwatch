@@ -215,7 +215,7 @@ class BundledTor:
         flags = 0x08000000 if sys.platform == "win32" else 0         # CREATE_NO_WINDOW
         try:
             self.proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                         creationflags=flags, cwd=os.path.dirname(self.exe))
+                                         creationflags=flags, cwd=os.path.dirname(self.exe), env=clean_env())
         except OSError as e:
             self.state, self.progress = "failed", f"Could not start Tor ({e.strerror or e})"
             return self.state
@@ -289,6 +289,30 @@ class TorLink:
 
     def close(self):
         self.bundled.stop()
+
+
+def clean_env():
+    """A copy of the environment without what a PyInstaller program adds. Firefox loads its own DLLs, and PATH entries
+    pointing into our unpacked temp folder make it fail with 'Couldn't load XPCOM'."""
+    env = dict(os.environ)
+    mei = getattr(sys, "_MEIPASS", "")
+    if mei:
+        parts = [p for p in env.get("PATH", "").split(os.pathsep) if p and os.path.normcase(p) != os.path.normcase(mei)
+                 and not os.path.normcase(p).startswith(os.path.normcase(mei))]
+        env["PATH"] = os.pathsep.join(parts)
+    for k in list(env):
+        if k.startswith("_PYI") or k in ("_MEIPASS2", "PYTHONHOME", "PYTHONPATH", "TCL_LIBRARY", "TK_LIBRARY"):
+            env.pop(k, None)
+    return env
+
+
+def start_browser(exe, url=""):
+    """Starts Tor Browser the way its own shortcut does: from its own folder, with a clean environment."""
+    try:
+        subprocess.Popen([exe] + ([url] if url else []), cwd=os.path.dirname(exe), env=clean_env())
+        return True
+    except OSError:
+        return False
 
 
 def find_tor_browser(root=""):

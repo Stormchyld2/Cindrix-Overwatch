@@ -17,7 +17,7 @@ jobs:
         run: python -m tests.smoke_ui
       - name: Real Tor Browser install test
         continue-on-error: true
-        run: python -c "import tempfile,os; from cindrix_overwatch import torbrowser as t; d=tempfile.mkdtemp(); p=t.install(d, print); print('INSTALLED', p, os.path.getsize(p))"
+        run: python -c "import tempfile,os; from cindrix_overwatch import torbrowser as t; d=tempfile.mkdtemp(); p=t.install(d, print); print('INSTALLED', p, os.path.getsize(p)); import subprocess; from cindrix_overwatch import tor; r=subprocess.run([p,'--version'], cwd=os.path.dirname(p), env=tor.clean_env(), capture_output=True, text=True, timeout=120); print('LAUNCH_CHECK', r.returncode, r.stdout.strip(), r.stderr.strip()[:200])"
       - name: Get the Tor Expert Bundle (optional)
         continue-on-error: true
         run: python tools/get_tor_bundle.py

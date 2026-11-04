@@ -112,8 +112,5 @@ def launch(root, url=""):
     p = firefox_path(root)
     if not p:
         return False
-    try:
-        subprocess.Popen([p] + ([url] if url else []))
-        return True
-    except OSError:
-        return False
+    from . import tor
+    return tor.start_browser(p, url)
