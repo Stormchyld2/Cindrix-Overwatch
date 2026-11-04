@@ -55,6 +55,13 @@ class App:
         self.root.configure(bg=theme.CHARCOAL)
         self.root.geometry("1440x900")
         self.root.minsize(1120, 720)
+        try:
+            self.root.state("zoomed")          # opens maximized on Windows
+        except tk.TclError:
+            pass
+        self.fullscreen = False
+        self.root.bind("<F11>", self._toggle_fullscreen)
+        self.root.bind("<Escape>", lambda e: self._toggle_fullscreen(force=False) if self.fullscreen else None)
         self._fonts()
         self._icon()
         self.q = queue.Queue()
@@ -164,6 +171,11 @@ class App:
         self._build_war(self.pages["war"])
         self._build_brief(self.pages["brief"])
         self._build_settings(self.pages["settings"])
+
+    def _toggle_fullscreen(self, event=None, force=None):
+        """F11 switches between maximized and true full screen (Escape leaves full screen)."""
+        self.fullscreen = (not self.fullscreen) if force is None else force
+        self.root.attributes("-fullscreen", self.fullscreen)
 
     def show_page(self, key):
         self.page = key
