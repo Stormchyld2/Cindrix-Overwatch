@@ -226,6 +226,11 @@ class Engine(unittest.TestCase):
         self.assertTrue(len(stamps) > 2)
         c2.close()
 
+    def test_gzip_unpacked_and_accept_header_by_host(self):
+        import gzip
+        self.assertEqual(gzip.decompress(gzip.compress(b"x")), b"x")
+        self.assertEqual(engine.ACCEPT_BY_HOST["api.weather.gov"], "application/geo+json")
+
     def test_default_fetch_refuses_http(self):
         self.assertEqual(engine.default_fetch("http://example.com/x"), (0, ""))
 

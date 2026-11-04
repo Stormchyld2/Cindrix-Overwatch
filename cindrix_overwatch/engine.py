@@ -3,6 +3,8 @@
 Network access goes through one injectable function, so tests run without the internet.
 """
 
+import gzip
+import io
 import json
 import os
 import time
@@ -20,20 +22,27 @@ KEEP_DAYS = 30
 DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15}
 
 
+ACCEPT = "application/rss+xml, application/atom+xml, application/xml, application/json, text/xml, */*;q=0.8"
+ACCEPT_BY_HOST = {"api.weather.gov": "application/geo+json"}      # otherwise it answers in Atom
+
+
 def default_fetch(url, timeout=25):
-    """Returns (status, text). Only https is allowed, including after redirects."""
+    """Returns (status, text). Only https is allowed, including after redirects. Gzip is unpacked."""
     if not url.lower().startswith("https://"):
         return 0, ""
-    req = urllib.request.Request(url, headers={"User-Agent": sources.UA,
-                                         "Accept": "application/rss+xml, application/atom+xml, application/xml, application/json, text/xml, */*;q=0.8"})
+    accept = ACCEPT_BY_HOST.get(urlparse(url).hostname, ACCEPT)
+    req = urllib.request.Request(url, headers={"User-Agent": sources.UA, "Accept": accept})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             if not r.geturl().lower().startswith("https://"):
                 return 0, ""
-            return r.status, r.read(MAX_BYTES).decode("utf-8", "replace")
+            raw = r.read(MAX_BYTES)
+            if raw[:2] == b"\x1f\x8b":
+                raw = gzip.GzipFile(fileobj=io.BytesIO(raw)).read(MAX_BYTES)
+            return r.status, raw.decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         return e.code, ""
-    except (urllib.error.URLError, OSError, TimeoutError, ValueError) as e:
+    except (urllib.error.URLError, OSError, TimeoutError, ValueError, EOFError) as e:
         return 0, str(e)[:120]
 
 

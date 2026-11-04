@@ -6,6 +6,7 @@ links on military and defense home pages so the source list can be pinned to add
 
 import re
 import sys
+import time
 from urllib.parse import urljoin
 
 from cindrix_overwatch import engine, feeds, sources
@@ -25,6 +26,8 @@ def main():
     bad_core = []
     print(f"{'source':16} {'result':10} items  note")
     for s in srcs:
+        if "gdeltproject" in s["url"]:
+            time.sleep(6)        # GDELT allows one request per five seconds
         status, text = engine.default_fetch(s["url"])
         if status != 200:
             res, n, note = f"HTTP {status}", "", (text or "")[:80]

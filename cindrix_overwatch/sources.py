@@ -49,7 +49,6 @@ BUILTIN = [
     _s("dw", "Deutsche Welle", "News", "news", "wire", "https://rss.dw.com/rdf/rss-en-world", every=30),
     _s("npr", "NPR World", "News", "news", "wire", "https://feeds.npr.org/1004/rss.xml", every=30),
     _s("un", "UN News", "News", "news", "official", "https://news.un.org/feed/subscribe/en/news/all/rss.xml"),
-    _s("reliefweb", "ReliefWeb", "News", "news", "official", "https://reliefweb.int/updates/rss.xml", every=60),
     _s("who", "WHO news", "Health", "health", "official",
        "https://www.who.int/rss-feeds/news-english.xml", every=120),
     _s("gdelt-conflict", "GDELT: conflict", "News", "conflict", "outlet",
@@ -68,6 +67,7 @@ CANDIDATES = [
     ("US Navy", "https://www.navy.mil" + _dod(1)),
     ("US European Command", "https://www.eucom.mil" + _dod(1)),
     ("US Indo-Pacific Command", "https://www.pacom.mil" + _dod(1)),
+    ("ReliefWeb (answers HTTP 406 to automated requests)", "https://reliefweb.int/updates/rss.xml"),
 ]
 
 
