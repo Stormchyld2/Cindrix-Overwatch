@@ -77,16 +77,13 @@ def install(root, say=None, get=_get, run=subprocess.run):
     with open(exe, "wb") as f:
         f.write(data)
     say("Installing quietly into the Overwatch folder")
-    if "portable" in name:
-        cmd = [exe, "-y", "-o" + dest]
-    else:
-        cmd = [exe, "/S", "/D=" + dest]
+    cmd = [exe, "/S", "/D=" + dest]            # tested on a Windows runner: unpacks to <dest>\\Browser\\firefox.exe
     say("Installer: " + name)
     import time
     proc = subprocess.Popen(cmd) if run is subprocess.run else None
     if proc is None:
         run(cmd)
-    deadline = time.monotonic() + (420 if "portable" not in name else 90)
+    deadline = time.monotonic() + 420
     while time.monotonic() < deadline and not firefox_path(root):
         if proc is not None and proc.poll() not in (None, 0) and not firefox_path(root):
             break

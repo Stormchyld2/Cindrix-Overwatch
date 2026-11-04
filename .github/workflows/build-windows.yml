@@ -18,9 +18,6 @@ jobs:
       - name: Real Tor Browser install test
         continue-on-error: true
         run: python -c "import tempfile,os; from cindrix_overwatch import torbrowser as t; d=tempfile.mkdtemp(); p=t.install(d, print); print('INSTALLED', p, os.path.getsize(p))"
-      - name: Which command line unpacks the Tor Browser portable exe
-        continue-on-error: true
-        run: python -m tools.try_tor_install
       - name: Get the Tor Expert Bundle (optional)
         continue-on-error: true
         run: python tools/get_tor_bundle.py
