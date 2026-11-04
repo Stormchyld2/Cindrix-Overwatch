@@ -291,9 +291,12 @@ class TorLink:
         self.bundled.stop()
 
 
-def find_tor_browser():
-    """Path of a Tor Browser install if there is one (for opening onion pages in the real thing)."""
+def find_tor_browser(root=""):
+    """Path of a Tor Browser install if there is one (the copy Overwatch installed first, then the usual places)."""
     names = []
+    if root:
+        names += [os.path.join(root, "TorBrowser", "Browser", "firefox.exe"),
+                  os.path.join(root, "TorBrowser", "Tor Browser", "Browser", "firefox.exe")]
     if sys.platform == "win32":
         home = os.path.expanduser("~")
         for base in (os.environ.get("LOCALAPPDATA", ""), os.environ.get("PROGRAMFILES", ""), os.path.join(home, "Desktop"),

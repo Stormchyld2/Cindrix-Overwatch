@@ -414,3 +414,38 @@ class Reader(unittest.TestCase):
         self.assertIn("Hello world", text)
         self.assertNotIn("alert", text)
         self.assertEqual(links, [("world", "http://" + ONION + "/a")])
+
+
+import csv as _csv
+from cindrix_overwatch import torbrowser
+
+
+class TorBrowserInstall(unittest.TestCase):
+    SUMS = ("%s  torbrowser-install-win64-16.0_ALL.exe\n%s  tor-browser-linux-x86_64-16.0.tar.xz\n" % ("a" * 64, "b" * 64))
+
+    def test_picks_windows_installer(self):
+        self.assertEqual(torbrowser.pick_installer(self.SUMS), ("torbrowser-install-win64-16.0_ALL.exe", "a" * 64))
+        self.assertIsNone(torbrowser.pick_installer("x"))
+
+    def test_checksum_mismatch_is_refused(self):
+        def get(url, timeout=0):
+            if url == torbrowser.BASE:
+                return b'<a href="16.0/">16.0/</a>'
+            if url.endswith("sha256sums-signed-build.txt"):
+                return self.SUMS.encode()
+            return b"not the real installer"
+        with self.assertRaises(RuntimeError) as cm:
+            torbrowser.install(tempfile.mkdtemp(), get=get, run=lambda *a, **k: None)
+        self.assertIn("checksum", str(cm.exception))
+
+
+class ExportList(unittest.TestCase):
+    def test_csv(self):
+        d = tempfile.mkdtemp()
+        c = engine.Controller(d, lambda u: (503, ""), lambda: S.NOW)
+        p = c.export_sources()
+        rows = list(_csv.reader(open(p, encoding="utf-8-sig")))
+        self.assertEqual(rows[0][0], "Name")
+        self.assertGreater(len(rows), 25)
+        self.assertTrue(any(r[1] == "Tor outlets" for r in rows))
+        c.close()

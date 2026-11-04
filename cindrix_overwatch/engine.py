@@ -288,6 +288,25 @@ class Controller:
             lines.append(f"  - {it.title}")
         return "\n".join(lines)
 
+    def export_sources(self, path=None):
+        """Writes every source (built-in, yours, and the onion outlet list) to a CSV that opens in Excel."""
+        import csv
+        path = path or os.path.join(self.root, "overwatch-sources.csv")
+        health = self.store.health()
+        with open(path, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f)
+            w.writerow(["Name", "Group", "Kind", "Trust", "Address", "Format", "Minutes between checks", "Status", "Notes"])
+            for s in self.sources():
+                h = health.get(s["id"])
+                st = "not checked yet" if not h else ("working" if h["ok"] else "problem: " + (h["error"] or ""))
+                w.writerow([s["name"], s["group"], s["kind"], s["trust"], s["url"], s["parser"], s["every"], st, ""])
+            for name, home, kind in sources.ONION_OUTLETS:
+                addr = self.settings["onion_addresses"].get(name, "")
+                w.writerow([name, "Tor outlets", kind, "outlet", addr or home, "rss", 30,
+                            "onion address found" if addr else "needs Tor / onion address not looked up",
+                            "Reported to run an official onion service; use the assistant to find the feed"])
+        return path
+
     def clear_history(self):
         self.store.clear()
 

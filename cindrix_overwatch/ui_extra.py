@@ -242,11 +242,12 @@ def build_tor_tab(app, p):
     app.btn(row, "Start Tor", lambda: (c.tor.bundled.start(), app._render_tor()), primary=True, small=True).pack(side="left")
     app.btn(row, "Stop Tor", lambda: (c.tor.bundled.stop(), app._render_tor()), small=True).pack(side="left", padx=8)
     app.btn(row, "Open reader", lambda: ReaderWindow(app), small=True).pack(side="left")
-    app.btn(row, "Open in Tor Browser", app._open_tor_browser, small=True).pack(side="left", padx=8)
+    app.btn(row, "Open Tor Browser", app._open_tor_browser, small=True).pack(side="left", padx=8)
+    app.btn(row, "Install Tor Browser (one click)", app._install_tor_browser, small=True).pack(side="left")
     tk.Label(top, justify="left", anchor="w", wraplength=980, font=app.f_small, fg=theme.MUTED, bg=theme.PANEL,
-             text=("Overwatch carries its own Tor for reading feeds and pages. The reader shows text only; it is not Tor Browser and does "
-                   "not give Tor Browser's protections against tracking. For anything where your safety matters, use the real Tor "
-                   "Browser (the button above opens it if it is installed).")).pack(fill="x", padx=14, pady=(0, 10))
+             text=("Overwatch carries its own Tor for reading feeds and pages. For browsing, it installs the real Tor Browser from the "
+                   "Tor Project (checked against their checksum) and opens it for you. That is the only browser built to hide you "
+                   "on Tor, so Overwatch does not try to imitate one. The quick text reader is not Tor Browser.")).pack(fill="x", padx=14, pady=(0, 10))
     app.label(p, "Outlets reported to run an official onion service", app.f_big).grid(row=1, column=0, sticky="w", padx=16)
     app.label(p, "No onion addresses are built in. Press Look up to read the address from the outlet's own website, "
                  "then Connect to add its feed.", app.f_small, theme.MUTED).grid(row=2, column=0, sticky="w", padx=16)
@@ -265,8 +266,8 @@ def build_tor_tab(app, p):
     app.tor_note.grid(row=5, column=0, sticky="w", padx=16, pady=(0, 10))
 
 
-def open_tor_browser(url=""):
-    exe = tor.find_tor_browser()
+def open_tor_browser(url="", root=""):
+    exe = tor.find_tor_browser(root)
     if not exe:
         return False
     try:

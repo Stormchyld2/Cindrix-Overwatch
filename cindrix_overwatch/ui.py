@@ -13,7 +13,7 @@ from tkinter import messagebox, ttk
 from . import __version__, geo, theme
 from .engine import Controller
 from .mapview import WorldMap
-from . import sources as _sources, tor as _tor, ui_extra
+from . import sources as _sources, tor as _tor, torbrowser, ui_extra
 from .model import KIND_LABELS, SEVERITY_WORDS, TRUST_LABELS
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
@@ -482,6 +482,7 @@ class App:
         bar.grid(row=0, column=0, sticky="ew", padx=14, pady=10)
         self.btn(bar, "Check all sources now", lambda: self.start_refresh(force=True), primary=True).pack(side="left")
         self.btn(bar, "Turn selected on or off", self._toggle_source).pack(side="left", padx=8)
+        self.btn(bar, "Export source list", self._export_sources).pack(side="left", padx=8)
         self.btn(bar, "Assistant: find and connect a feed", lambda: ui_extra.FeedAssistant(self, self.cf_url.get().strip()),
                  primary=True).pack(side="left", padx=8)
         self.tree = ttk.Treeview(p, columns=("group", "status", "items", "last", "trust"), show="tree headings")
@@ -577,14 +578,30 @@ class App:
             ui_extra.ReaderWindow(self, self.c.settings["onion_addresses"].get(o[0]) or o[1])
 
     def _open_tor_browser(self, url=""):
-        if not ui_extra.open_tor_browser(url):
-            self.tor_note.configure(text="Tor Browser was not found on this PC. Install it from torproject.org, "
-                                         "or use the reader.", fg=theme.AMBER)
+        if not ui_extra.open_tor_browser(url, self.c.root):
+            self.tor_note.configure(text="Tor Browser is not installed yet. Press Install Tor Browser (one click).",
+                                    fg=theme.AMBER)
+
+    def _install_tor_browser(self):
+        self.tor_note.configure(text="Working...", fg=theme.MUTED)
+
+        def done(kind, val):
+            self.tor_note.configure(text=val if kind == "err" else "Tor Browser is installed. Press Open Tor Browser.",
+                                    fg=theme.RED if kind == "err" else theme.GREEN)
+
+        def work():
+            return torbrowser.install(self.c.root, lambda m: self.root.after(0, lambda: self.tor_note.configure(text=m)))
+        ui_extra.Worker(self.root, work, done)
+
+    def _export_sources(self):
+        path = self.c.export_sources()
+        self.src_note.configure(text="Saved the source list to " + path, fg=theme.GREEN)
 
     def open_link(self, url):
         """Onion links open in the reader; everything else in the normal browser."""
         if _tor.is_onion_url(url):
-            ui_extra.ReaderWindow(self, url)
+            if not ui_extra.open_tor_browser(url, self.c.root):
+                ui_extra.ReaderWindow(self, url)
             return True
         return open_url(url)
 
