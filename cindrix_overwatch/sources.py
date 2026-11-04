@@ -82,12 +82,9 @@ TRIAL = [
     ("stripes", "Stars and Stripes", "Military", "military", "outlet", "https://www.stripes.com/feeds/rss/"),
     # From the owner's second list: wrong or retired addresses (404 or "Invalid url"). The assistant can find the right ones.
     ("janes", "Janes defence headlines", "Military", "military", "outlet", "https://www.janes.com/feeds/news"),
-    ("climate", "NOAA Climate.gov news", "Hazards", "news", "official", "https://www.climate.gov/news-features/feed"),
     ("reuters", "Reuters World News", "News", "news", "wire",
      "https://www.reutersagency.com/feed/?best-topics=world-news&post_type=best"),
     ("nws-us", "NWS active alerts (all US)", "Hazards", "weather", "official", "https://alerts.weather.gov/cap/us.php?x=0"),
-    ("rferl", "Radio Free Europe / Radio Liberty", "News", "news", "outlet", "https://www.rferl.org/api/z-pqpiev-q"),
-    ("voa", "Voice of America", "News", "news", "outlet", "https://www.voanews.com/api/z-$gim_rqo"),
 ]
 
 
