@@ -15,13 +15,23 @@ jobs:
           python-version: "3.12"
       - name: Window smoke test
         run: python -m tests.smoke_ui
+      - name: Get the Tor Expert Bundle (optional)
+        continue-on-error: true
+        run: python tools/get_tor_bundle.py
       - name: Build exe
         shell: bash
         run: |
           pip install pyinstaller
+          TOR_ARGS=""
+          if [ -f tor_bundle/tor/tor.exe ]; then
+            TOR_ARGS="--add-data tor_bundle/tor;tor --add-data tor_bundle/data;data"
+            echo "Built-in Tor included"
+          else
+            echo "No built-in Tor in this build"
+          fi
           VER=$(python -c "from cindrix_overwatch import __version__ as v; print(v)")
           pyinstaller --onefile --windowed --icon cindrix_overwatch/data/icon.ico --name "CindrixOverwatch-$VER-windows" \
-            --add-data "cindrix_overwatch/data;cindrix_overwatch/data" run_overwatch.py
+            --add-data "cindrix_overwatch/data;cindrix_overwatch/data" $TOR_ARGS run_overwatch.py
           ls -l dist/
       - name: Upload the exe (plain file, not zipped)
         id: upload
@@ -62,3 +72,10 @@ jobs:
           python-version: "3.12"
       - name: Fetch every real source and list military feed links
         run: python -m tests.check_feeds
+      - name: Tor check (onion addresses from the outlets' own sites, then a real fetch through Tor)
+        continue-on-error: true
+        run: |
+          sudo apt-get install -y tor > /dev/null
+          sudo service tor start || (tor --SocksPort 9050 --DataDirectory /tmp/tordata > /tmp/tor.log 2>&1 &)
+          sleep 40
+          python -m tests.check_tor

@@ -13,6 +13,7 @@ from tkinter import messagebox, ttk
 from . import __version__, geo, theme
 from .engine import Controller
 from .mapview import WorldMap
+from . import sources as _sources, tor as _tor, ui_extra
 from .model import KIND_LABELS, SEVERITY_WORDS, TRUST_LABELS
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
@@ -142,7 +143,7 @@ class App:
             tk.Label(top, image=self.icon_small, bg=theme.PANEL).pack(side="left", padx=(16, 8), pady=8)
         self.label(top, "CINDRIX OVERWATCH", self.f_title).pack(side="left", padx=(0, 18))
         self.nav = {}
-        for key, text in (("war", "War room"), ("brief", "Brief"), ("sources", "Sources"), ("settings", "Settings")):
+        for key, text in (("war", "War room"), ("brief", "Brief"), ("settings", "Settings")):
             b = tk.Button(top, text=text, command=lambda k=key: self.show_page(k), relief="flat", bd=0, padx=14, pady=7,
                           font=self.f_bold, cursor="hand2", bg=theme.PANEL, fg=theme.BONE,
                           activebackground=theme.PANEL_HIGH, activeforeground=theme.BONE)
@@ -155,14 +156,13 @@ class App:
         self.body.grid(row=1, column=0, sticky="nsew")
         self.body.rowconfigure(0, weight=1)
         self.body.columnconfigure(0, weight=1)
-        self.pages = {k: tk.Frame(self.body, bg=theme.CHARCOAL) for k in ("war", "brief", "sources", "settings")}
+        self.pages = {k: tk.Frame(self.body, bg=theme.CHARCOAL) for k in ("war", "brief", "settings")}
         for f in self.pages.values():
             f.grid(row=0, column=0, sticky="nsew")
         self.statusbar = self.label(r, "", self.f_small, theme.MUTED, bg=theme.PANEL)
         self.statusbar.grid(row=2, column=0, sticky="ew", ipady=6, padx=0)
         self._build_war(self.pages["war"])
         self._build_brief(self.pages["brief"])
-        self._build_sources(self.pages["sources"])
         self._build_settings(self.pages["settings"])
 
     def show_page(self, key):
@@ -172,8 +172,9 @@ class App:
             b.configure(bg=theme.BLUE if k == key else theme.PANEL, fg=theme.ON_BLUE if k == key else theme.BONE)
         if key == "brief":
             self._render_brief()
-        elif key == "sources":
+        elif key == "settings":
             self._render_sources()
+            self._render_tor()
 
     # ----- war room -----
     def _build_war(self, p):
@@ -362,7 +363,7 @@ class App:
 
         def bind(w):
             w.bind("<Button-1>", lambda e, i=it: self.select(i, from_feed=True))
-            w.bind("<Double-Button-1>", lambda e, i=it: open_url(i.url))
+            w.bind("<Double-Button-1>", lambda e, i=it: self.open_link(i.url))
             for ch in w.winfo_children():
                 bind(ch)
         bind(outer)
@@ -441,7 +442,7 @@ class App:
 
     def _open_selected(self):
         if self.selected:
-            open_url(self.selected.url)
+            self.open_link(self.selected.url)
 
     # ----- brief, sources, settings -----
     def _build_brief(self, p):
@@ -481,6 +482,8 @@ class App:
         bar.grid(row=0, column=0, sticky="ew", padx=14, pady=10)
         self.btn(bar, "Check all sources now", lambda: self.start_refresh(force=True), primary=True).pack(side="left")
         self.btn(bar, "Turn selected on or off", self._toggle_source).pack(side="left", padx=8)
+        self.btn(bar, "Assistant: find and connect a feed", lambda: ui_extra.FeedAssistant(self, self.cf_url.get().strip()),
+                 primary=True).pack(side="left", padx=8)
         self.tree = ttk.Treeview(p, columns=("group", "status", "items", "last", "trust"), show="tree headings")
         for col, text, w in (("#0", "Source", 260), ("group", "Group", 90), ("status", "Status", 300),
                              ("items", "Items", 60), ("last", "Last worked", 110), ("trust", "Trust", 110)):
@@ -489,7 +492,7 @@ class App:
         self.tree.grid(row=1, column=0, sticky="nsew", padx=14)
         add = tk.Frame(p, bg=theme.PANEL)
         add.grid(row=2, column=0, sticky="ew", padx=14, pady=10)
-        self.label(add, "Add your own feed (RSS or Atom, https only)", self.f_bold).grid(row=0, column=0, columnspan=6,
+        self.label(add, "Add your own feed (RSS or Atom, https only; .onion works when Tor is running)", self.f_bold).grid(row=0, column=0, columnspan=6,
                                                                                          sticky="w", padx=12, pady=(10, 4))
         self.cf_name, self.cf_url, self.cf_kind = tk.StringVar(), tk.StringVar(), tk.StringVar(value="news")
         for i, (text, var, wd) in enumerate((("Name", self.cf_name, 20), ("Address", self.cf_url, 50))):
@@ -514,6 +517,76 @@ class App:
                 row["group"], status, h["count"] if h and h["ok"] else "", ago(h["last_ok"], now) if h and h["last_ok"] else "",
                 TRUST_LABELS[row["trust"]]))
         self.src_note.configure(text=f"{len(disabled)} built-in source(s) turned off." if disabled else "")
+
+    def _tor_poll(self):
+        if self.page == "settings":
+            self._render_tor()
+        self.root.after(1500, self._tor_poll)
+
+    def _render_tor(self):
+        self.tor_status.configure(text=self.c.tor.describe())
+        have = self.c.settings["onion_addresses"]
+        sel = self.onion_tree.selection()
+        self.onion_tree.delete(*self.onion_tree.get_children())
+        for name, home, _ in _sources.ONION_OUTLETS:
+            self.onion_tree.insert("", "end", iid=name, text=name, values=(home, have.get(name, "not looked up yet")))
+        if sel and self.onion_tree.exists(sel[0]):
+            self.onion_tree.selection_set(sel[0])
+
+    def _picked_outlet(self):
+        sel = self.onion_tree.selection()
+        if not sel:
+            self.tor_note.configure(text="Pick an outlet in the list first.", fg=theme.AMBER)
+            return None
+        for name, home, kind in _sources.ONION_OUTLETS:
+            if name == sel[0]:
+                return name, home, kind
+        return None
+
+    def _lookup_onion(self):
+        o = self._picked_outlet()
+        if not o:
+            return
+        name, home, _ = o
+        self.tor_note.configure(text=f"Asking {home} for its onion address...", fg=theme.MUTED)
+
+        def done(kind, val):
+            if kind == "err" or not val:
+                self.tor_note.configure(text="That site did not advertise an onion address to us. You can paste one from the "
+                                             "outlet's own page into the reader or the assistant.", fg=theme.AMBER)
+                return
+            self.c.set_onion_address(name, val)
+            self.tor_note.configure(text="Found it in the site's own Onion-Location header.", fg=theme.GREEN)
+            self._render_tor()
+        ui_extra.Worker(self.root, lambda: self.c.onion_location(home), done)
+
+    def _outlet_feed(self, via_tor):
+        o = self._picked_outlet()
+        if not o:
+            return
+        name, home, _ = o
+        addr = self.c.settings["onion_addresses"].get(name) if via_tor else home
+        if via_tor and not addr:
+            self.tor_note.configure(text="Look up its onion address first.", fg=theme.AMBER)
+            return
+        ui_extra.FeedAssistant(self, addr)
+
+    def _outlet_reader(self):
+        o = self._picked_outlet()
+        if o:
+            ui_extra.ReaderWindow(self, self.c.settings["onion_addresses"].get(o[0]) or o[1])
+
+    def _open_tor_browser(self, url=""):
+        if not ui_extra.open_tor_browser(url):
+            self.tor_note.configure(text="Tor Browser was not found on this PC. Install it from torproject.org, "
+                                         "or use the reader.", fg=theme.AMBER)
+
+    def open_link(self, url):
+        """Onion links open in the reader; everything else in the normal browser."""
+        if _tor.is_onion_url(url):
+            ui_extra.ReaderWindow(self, url)
+            return True
+        return open_url(url)
 
     def _toggle_source(self):
         sel = self.tree.selection()
@@ -542,6 +615,18 @@ class App:
             self._render_sources()
 
     def _build_settings(self, p):
+        p.columnconfigure(0, weight=1)
+        p.rowconfigure(0, weight=1)
+        self.settings_tabs = nb = ttk.Notebook(p)
+        nb.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+        general, feeds_tab, tor_tab = (tk.Frame(nb, bg=theme.CHARCOAL) for _ in range(3))
+        nb.add(general, text="  General  ")
+        nb.add(feeds_tab, text="  Feeds  ")
+        nb.add(tor_tab, text="  Tor  ")
+        self._build_sources(feeds_tab)
+        ui_extra.build_tor_tab(self, tor_tab)
+        self.root.after(1500, self._tor_poll)
+        p = general
         p.columnconfigure(0, weight=1)
         card = tk.Frame(p, bg=theme.PANEL)
         card.grid(row=0, column=0, sticky="ew", padx=14, pady=14)

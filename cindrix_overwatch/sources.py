@@ -80,12 +80,14 @@ def nws_sources(states):
 
 
 def valid_feed_url(url):
-    """Custom feeds must be https and not a bare IP address."""
+    """Custom feeds must be https and not a bare IP address. A .onion address may use http (Tor encrypts it)."""
     try:
         p = urlparse((url or "").strip())
     except ValueError:
         return False
     host = p.hostname or ""
+    if re.fullmatch(r"[a-z2-7]{56}\.onion", host.lower()):
+        return p.scheme in ("http", "https")
     return p.scheme == "https" and "." in host and not re.fullmatch(r"[\d.]+", host) and ":" not in host
 
 
@@ -95,8 +97,9 @@ def custom_sources(entries):
         if not isinstance(e, dict) or not valid_feed_url(e.get("url")):
             continue
         kind = e.get("kind") if e.get("kind") in ("military", "conflict", "hazard", "health", "news") else "news"
-        out.append(_s(f"custom-{i}", str(e.get("name") or "Custom feed")[:60], "Mine", kind, "outlet", e["url"],
-                      "rss", 30, "custom"))
+        onion = bool(re.search(r"\.onion(?::|/|$)", urlparse(e["url"]).netloc.lower() + "/"))
+        out.append(_s(f"custom-{i}", str(e.get("name") or "Custom feed")[:60], "Mine (Tor)" if onion else "Mine", kind,
+                      "outlet", e["url"], "rss", 30, "custom", tor=onion))
     return out
 
 
@@ -105,3 +108,19 @@ def all_sources(settings):
     disabled = set(settings.get("disabled", []))
     srcs = nws_sources(states) + BUILTIN + custom_sources(settings.get("custom_feeds", []))
     return [s for s in srcs if s["id"] not in disabled]
+
+
+# Outlets reported (Wikipedia's list of Tor onion services and the Freedom of the Press Foundation) to run an official
+# onion service. NO onion addresses are stored here: an address is read from the outlet's own site (the Onion-Location
+# header) or pasted by you from the outlet's own page. 'home' is the normal website used to find the feed.
+ONION_OUTLETS = [
+    ("BBC News", "https://www.bbc.com/news", "news"),
+    ("Deutsche Welle", "https://www.dw.com/en/", "news"),
+    ("The Guardian", "https://www.theguardian.com/", "news"),
+    ("ProPublica", "https://www.propublica.org/", "news"),
+    ("The Intercept", "https://theintercept.com/", "news"),
+    ("Bellingcat", "https://www.bellingcat.com/", "conflict"),
+    ("Radio Free Europe / Radio Liberty", "https://www.rferl.org/", "news"),
+    ("Voice of America", "https://www.voanews.com/", "news"),
+    ("taz (Die Tageszeitung)", "https://taz.de/", "news"),
+]

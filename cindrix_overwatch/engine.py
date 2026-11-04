@@ -14,12 +14,13 @@ import urllib.request
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor
 
-from . import feeds, geo, scoring, sources
+from . import discover, feeds, geo, scoring, sources, tor
 from .store import Store
 
 MAX_BYTES = 5_000_000
 KEEP_DAYS = 30
-DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15}
+DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15,
+                    "onion_addresses": {}}
 
 
 ACCEPT = "application/rss+xml, application/atom+xml, application/xml, application/json, text/xml, */*;q=0.8"
@@ -47,9 +48,11 @@ def default_fetch(url, timeout=25):
 
 
 class Controller:
-    def __init__(self, root, fetch=default_fetch, now=time.time):
+    def __init__(self, root, fetch=None, now=time.time, tor_link=None):
         os.makedirs(root, exist_ok=True)
-        self.root, self.fetch, self.now = root, fetch, now
+        self.tor = tor_link or tor.TorLink(root)
+        self.root, self.now = root, now
+        self.fetch = fetch or self._routed_fetch
         self.settings_path = os.path.join(root, "settings.json")
         self.store = Store(os.path.join(root, "overwatch.db"))
         self.settings = self._load_settings()
@@ -69,9 +72,40 @@ class Controller:
         if start > t:
             time.sleep(start - t)
 
+    def _routed_fetch(self, url):
+        """Onion addresses go through Tor and nothing else; everything else is a normal https fetch."""
+        if tor.is_onion_url(url):
+            return self.tor.fetch(url)
+        return default_fetch(url)
+
+    def onion_location(self, url):
+        """Asks a normal website for its official onion address (its Onion-Location header). Returns '' if none."""
+        req = urllib.request.Request(url, headers={"User-Agent": sources.UA})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                loc = (r.headers.get("Onion-Location") or "").strip()
+        except (urllib.error.URLError, OSError, ValueError):
+            return ""
+        return loc if tor.is_onion_url(loc) else ""
+
+    def read_page(self, url, use_tor=True):
+        """Raw page text for the reader. Onion addresses always use Tor; others use it when asked and available."""
+        if tor.is_onion_url(url) or (use_tor and self.tor.proxy()):
+            return self.tor.fetch(url)
+        return default_fetch(url)
+
+    def set_onion_address(self, name, addr):
+        if not tor.is_onion_url(addr):
+            raise ValueError("That is not a valid .onion address.")
+        self.settings["onion_addresses"][name] = addr
+        self.save_settings()
+
+    def find_feeds(self, address, say=None):
+        return discover.find_feeds(self.fetch, address, say)
+
     # ----- settings -----
     def _load_settings(self):
-        s = {k: (list(v) if isinstance(v, list) else v) for k, v in DEFAULT_SETTINGS.items()}
+        s = {k: (list(v) if isinstance(v, list) else dict(v) if isinstance(v, dict) else v) for k, v in DEFAULT_SETTINGS.items()}
         try:
             with open(self.settings_path, encoding="utf-8") as f:
                 data = json.load(f)
@@ -100,7 +134,7 @@ class Controller:
 
     def add_custom_feed(self, name, url, kind="news"):
         if not sources.valid_feed_url(url):
-            raise ValueError("A feed address must start with https:// and use a website name.")
+            raise ValueError("A feed address must start with https:// and use a website name (or be a .onion address).")
         if len(self.settings["custom_feeds"]) >= 30:
             raise ValueError("That is the limit of 30 custom feeds.")
         self.settings["custom_feeds"].append({"name": (name or "Custom feed").strip()[:60], "url": url.strip(),
@@ -259,3 +293,7 @@ class Controller:
 
     def close(self):
         self.store.close()
+        try:
+            self.tor.close()
+        except Exception:
+            pass

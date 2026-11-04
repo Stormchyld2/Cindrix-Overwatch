@@ -246,3 +246,171 @@ class Sources(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------- feeds finder, Tor, reader ----------------
+import gzip
+import socket
+import struct
+
+from cindrix_overwatch import discover, reader, tor
+
+ONION = "a" * 56 + ".onion"
+HOME_HTML = ('<html><head><title>X</title><link rel="alternate" type="application/rss+xml" title="Top" href="/top.rss">'
+             '<link rel="stylesheet" href="/s.css"></head><body>hi</body></html>')
+
+
+class Finder(unittest.TestCase):
+    def fetch(self, url):
+        pages = {"https://news.example.com/": (200, HOME_HTML), "https://news.example.com/top.rss": (200, S.NEWS_RSS),
+                 "https://plain.example.com/": (200, "<html>no links</html>"),
+                 "https://plain.example.com/feed.xml": (200, S.ATOM_MOD),
+                 "https://dead.example.com/": (200, "<html></html>")}
+        return pages.get(url, (404, ""))
+
+    def test_follows_advertised_link(self):
+        got = discover.find_feeds(self.fetch, "news.example.com")
+        self.assertEqual(got[0]["url"], "https://news.example.com/top.rss")
+        self.assertEqual(got[0]["count"], 4)
+
+    def test_falls_back_to_usual_paths(self):
+        got = discover.find_feeds(self.fetch, "https://plain.example.com")
+        self.assertEqual(got[0]["url"], "https://plain.example.com/feed.xml")
+
+    def test_address_that_is_a_feed(self):
+        got = discover.find_feeds(lambda u: (200, S.NEWS_RSS), "https://x.example.com/rss")
+        self.assertEqual(got[0]["url"], "https://x.example.com/rss")
+
+    def test_nothing_found_and_bad_input(self):
+        with self.assertRaises(ValueError):
+            discover.find_feeds(self.fetch, "dead.example.com")
+        for bad in ("", "http://insecure.example.com", "192.168.1.1", "nodots"):
+            with self.assertRaises(ValueError):
+                discover.normalize(bad)
+        self.assertEqual(discover.normalize(ONION), "http://" + ONION + "/")
+
+    def test_kind_guess(self):
+        self.assertEqual(discover.guess_kind("https://www.af.mil/rss", ""), "military")
+        self.assertEqual(discover.guess_kind("https://x.com/rss", "Top stories"), "news")
+
+
+class FakeSocks:
+    """A tiny SOCKS5 server that answers the request itself, so the client can be tested without Tor."""
+
+    def __init__(self, response):
+        self.response, self.asked, self.request = response, [], b""
+        self.srv = socket.socket()
+        self.srv.bind(("127.0.0.1", 0))
+        self.srv.listen(5)
+        self.port = self.srv.getsockname()[1]
+        threading.Thread(target=self.run, daemon=True).start()
+
+    def run(self):
+        while True:
+            try:
+                c, _ = self.srv.accept()
+            except OSError:
+                return
+            try:
+                c.recv(3)
+                c.sendall(b"\x05\x00")
+                h = c.recv(4)
+                n = c.recv(1)[0]
+                host = c.recv(n).decode()
+                port = struct.unpack(">H", c.recv(2))[0]
+                self.asked.append((host, port, h[3]))
+                c.sendall(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
+                self.request = c.recv(4096)
+                c.sendall(self.response() if callable(self.response) else self.response)
+            except (OSError, IndexError):
+                pass
+            finally:
+                c.close()
+
+    def close(self):
+        self.srv.close()
+
+
+class TorClient(unittest.TestCase):
+    def test_onion_address_rules(self):
+        self.assertTrue(tor.is_onion_url("http://" + ONION + "/rss"))
+        self.assertFalse(tor.is_onion_url("http://example.onion/"))
+        self.assertFalse(tor.is_onion_url("ftp://" + ONION))
+        self.assertTrue(sources.valid_feed_url("http://" + ONION + "/feed"))
+        self.assertFalse(sources.valid_feed_url("http://example.com/feed"))
+
+    def test_fetch_through_socks_chunked_gzip(self):
+        body = gzip.compress(S.NEWS_RSS.encode())
+        chunked = b"%x\r\n" % len(body) + body + b"\r\n0\r\n\r\n"
+        resp = (b"HTTP/1.1 200 OK\r\nContent-Type: application/rss+xml\r\nContent-Encoding: gzip\r\n"
+                b"Transfer-Encoding: chunked\r\n\r\n" + chunked)
+        srv = FakeSocks(resp)
+        try:
+            status, text = tor.tor_fetch("http://" + ONION + "/rss", ("127.0.0.1", srv.port))
+        finally:
+            srv.close()
+        self.assertEqual(status, 200)
+        self.assertEqual(len(feeds.parse_rss(text, SRC, S.NOW)), 4)
+        host, port, atyp = srv.asked[0]
+        self.assertEqual((host, port, atyp), (ONION, 80, 3))          # name handed to Tor, never resolved locally
+        self.assertIn(b"Host: " + ONION.encode(), srv.request)
+
+    def test_redirect_to_insecure_refused_and_plain_http_blocked(self):
+        srv = FakeSocks(b"HTTP/1.1 302 Found\r\nLocation: http://example.com/x\r\n\r\n")
+        try:
+            status, msg = tor.tor_fetch("http://" + ONION + "/", ("127.0.0.1", srv.port))
+        finally:
+            srv.close()
+        self.assertEqual(status, 0)
+        self.assertIn("insecure", msg)
+        self.assertEqual(tor.tor_fetch("http://example.com/", ("127.0.0.1", 9))[0], 0)
+
+    def test_probe_and_missing_tor(self):
+        srv = FakeSocks(b"")
+        try:
+            self.assertTrue(tor.probe(srv.port))
+        finally:
+            srv.close()
+        self.assertFalse(tor.probe(9))
+        link = tor.TorLink(tempfile.mkdtemp(), tor.BundledTor(tempfile.mkdtemp(), exe=""))
+        link.ports = ()
+        self.assertEqual(link.fetch("http://" + ONION + "/")[0], 0)
+        self.assertIn("No Tor", link.describe())
+
+
+class OnionFeedsInController(unittest.TestCase):
+    def test_onion_feed_needs_tor_then_works(self):
+        class FakeLink:
+            def __init__(self): self.up = False
+            def proxy(self): return ("x", 1) if self.up else None
+            def fetch(self, url): return (200, S.NEWS_RSS) if self.up else (0, "Needs Tor, which is not running")
+            def describe(self): return ""
+            def close(self): pass
+        link = FakeLink()
+        d = tempfile.mkdtemp()
+        c = engine.Controller(d, tor_link=link, now=lambda: S.NOW)
+        c.host_gaps = {}
+        c.add_custom_feed("Onion", "http://" + ONION + "/feed", "news")
+        c.settings["disabled"] = [s["id"] for s in sources.BUILTIN] + ["nws-wv", "nws-tn"]
+        r = c.refresh(force=True)
+        self.assertEqual(r["failed"], 1)
+        self.assertIn("Needs Tor", c.source_status()[0]["health"]["error"])
+        link.up = True
+        r = c.refresh(force=True)
+        self.assertEqual(r["ok"], 1)
+        self.assertEqual(c.read_page("http://" + ONION + "/", True)[0], 200)
+        c.set_onion_address("Foo", "http://" + ONION + "/")
+        with self.assertRaises(ValueError):
+            c.set_onion_address("Foo", "http://example.com/")
+        c.close()
+
+
+class Reader(unittest.TestCase):
+    def test_text_links_no_scripts(self):
+        html = ("<html><head><title> My  Page </title><style>x{}</style></head><body><script>alert(1)</script>"
+                "<h1>Head</h1><p>Hello <a href='/a'>world</a></p><a href='javascript:x()'>bad</a></body></html>")
+        title, text, links = reader.html_to_text(html, "http://" + ONION + "/")
+        self.assertEqual(title, "My Page")
+        self.assertIn("Hello world", text)
+        self.assertNotIn("alert", text)
+        self.assertEqual(links, [("world", "http://" + ONION + "/a")])

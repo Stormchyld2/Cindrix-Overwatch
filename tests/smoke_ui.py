@@ -74,11 +74,16 @@ def main():
         pump(app)
 
         # every page opens
-        for page in ("brief", "sources", "settings", "war"):
+        for page in ("brief", "settings", "war"):
             app.show_page(page)
             pump(app, 0.1)
         assert "Status lights" in app.brief_text.get("1.0", "end")
+        app.show_page("settings")
         assert len(app.tree.get_children()) >= 15, len(app.tree.get_children())
+        assert len(app.onion_tree.get_children()) >= 8
+        assert app.tor_status.cget("text")
+        app.settings_tabs.select(2)
+        pump(app, 0.1)
 
         # settings: bad and good home states, custom feed
         app.home_var.set("ZZ")
