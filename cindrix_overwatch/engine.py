@@ -125,6 +125,10 @@ class Controller:
     def _pull(self, src):
         self._throttle(src["url"])
         status, text = self.fetch(src["url"])
+        if status == 429 and src["url"].startswith("https://api.gdeltproject.org"):
+            time.sleep(self.host_gaps.get("api.gdeltproject.org", 0) + 1)      # rate limited: wait once and retry
+            self._throttle(src["url"])
+            status, text = self.fetch(src["url"])
         if status != 200:
             raise feeds.FeedError("Could not reach it" + (f" (HTTP {status})" if status else (f": {text}" if text else "")))
         return feeds.PARSERS[src["parser"]](text, src, self.now())

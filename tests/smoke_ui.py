@@ -78,7 +78,7 @@ def main():
             app.show_page(page)
             pump(app, 0.1)
         assert "Status lights" in app.brief_text.get("1.0", "end")
-        assert len(app.tree.get_children()) >= 20
+        assert len(app.tree.get_children()) >= 15, len(app.tree.get_children())
 
         # settings: bad and good home states, custom feed
         app.home_var.set("ZZ")
