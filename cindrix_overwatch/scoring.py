@@ -32,7 +32,9 @@ DEPLOY_RE = _W("deploys?", "deployed", "deploying", "deployment", "mobili[sz]", 
                "troops (?:to|near|along|on)", "sends? (?:troops|forces|warships|ships|jets|aircraft)", "strike group",
                "carrier group", "amphibious", "moves? (?:forces|troops|warships)", "reinforce", "redeploy", "dispatch",
                "no-?fly zone", "notam", "naval exercise", "military exercise", "war games", "blockade", "drawdown",
-               "ordered departure", "evacuat", "martial law", "state of emergency", "conscription", "draft",
+               "ordered departure", "evacuat", "martial law", "state of emergency", "conscription", "military draft",
+               "draft (?:call|order|notice)", "airlift", "troop rotation", "snap (?:drill|exercise|inspection)", "live-?fire",
+               "scrambl", "heightened alert", "put on alert", "on high alert", "armada",
                "troop (?:movement|concentration|buildup)", "border (?:closure|closed)", "airspace (?:closed|closure)",
                "nuclear (?:alert|readiness|drill|exercise)", "missile (?:test|launch)", "readiness")
 

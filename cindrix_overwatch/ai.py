@@ -318,6 +318,7 @@ def off_topic(item):
 _DOSE_RE = re.compile(r"\b\d+(\.\d+)?\s?(mg|mcg|µg|ml|iu|units?|tablets?|pills?)\b|\b(dose|dosage|you should take|take \d)\b", re.I)
 _PREDICT_RE = re.compile(r"\b(will likely|is likely to|are likely to|probably will|expected to|will soon|will escalate|"
                          r"is going to|are going to|imminent|inevitable|certainly will)\b", re.I)
+_STRONG_RE = re.compile(r"\b(confirmed|verified|proven|proved|certain|definitely|undoubtedly)\b", re.I)
 _COMMON_CAPS = {"the", "a", "an", "in", "on", "at", "of", "and", "it", "its", "this", "that", "no", "some", "reports",
                 "reported", "claimed", "officials", "official", "state", "media", "says", "said"}
 
@@ -335,6 +336,8 @@ def grounded(bullet, source_texts):
     low = src.lower()
     if _PREDICT_RE.search(body) and not _PREDICT_RE.search(src):
         return False
+    if _STRONG_RE.search(body) and not _STRONG_RE.search(src):
+        return False                                   # "confirmed" when the headline only says "reported"
     for num in re.findall(r"\d[\d,.]*\d|\d", body):
         if _norm_num(num).rstrip(".") not in _norm_num(src):
             return False
@@ -390,8 +393,59 @@ def gather(controller, max_items=36, hours=24, focus=True):
     return items, parts
 
 
+REGIONS = (
+    ("Ukraine and Russia", r"ukrain|russia|kyiv|kiev|moscow|donetsk|kharkiv|crimea|belarus|black sea|baltic|kaliningrad"),
+    ("Middle East", r"israel|gaza|iran|lebanon|hezbollah|syria|yemen|houthi|iraq|red sea|saudi|jordan|hormuz|west bank"),
+    ("East Asia", r"taiwan|china|chinese|beijing|south china sea|japan|north korea|south korea|pyongyang|philippines"),
+    ("South Asia", r"india|pakistan|kashmir|afghanistan|bangladesh"),
+    ("Africa", r"sudan|ethiopia|somalia|sahel|mali\b|niger\b|congo|libya|nigeria|mozambique"),
+    ("Americas", r"venezuela|colombia|mexico|cuba|haiti|guyana|panama|brazil|u\.s\. (?:troops|navy)"),
+    ("Europe and NATO", r"nato|poland|romania|finland|sweden|germany|france|britain|u\.k\.|serbia|kosovo"),
+)
+_REGION_RE = [(n, re.compile(r, re.I)) for n, r in REGIONS]
+
+
+def region_of(item, home_states=()):
+    """A rough region label for a headline, from the words in it. '' when none fits."""
+    t = f"{item.shown} {item.place}"
+    if home_states and scoring.is_home(item, home_states):
+        return "Home"
+    for name, rx in _REGION_RE:
+        if rx.search(t):
+            return name
+    return ""
+
+
+def region_changes(controller, now=None):
+    """Activity by region: last 24 hours against the 24 before. Computed in code (not by the model)."""
+    now = now or controller.now()
+    hs = controller.settings["home_states"]
+    cur, prev = {}, {}
+    for it in controller.all_items(48):
+        if it.kind not in ("military", "conflict", "news") or it.source_id == "travel":
+            continue
+        r = region_of(it, hs)
+        if not r or off_topic(it):
+            continue
+        (cur if it.ts >= now - 24 * 3600 else prev)[r] = (cur if it.ts >= now - 24 * 3600 else prev).get(r, 0) + 1
+    rows = []
+    for r in set(cur) | set(prev):
+        a, b = cur.get(r, 0), prev.get(r, 0)
+        if a >= 3 and a >= b * 1.5 + 1:
+            rows.append((a - b, f"- {r}: {a} reports in the last 24 hours, up from {b} the day before."))
+        elif b >= 4 and a * 2 <= b:
+            rows.append((0, f"- {r}: quieter, {a} reports against {b} the day before."))
+    rows.sort(key=lambda x: -x[0])
+    return [r for _, r in rows[:5]]
+
+
+TRUST_WORD = {"official": "official source", "wire": "news wire", "outlet": "news outlet"}
+
+
 def headline_line(n, it):
-    tags = [it.kind] + (["force-movement"] if scoring.is_deployment(it) else []) + ([f"{it.count} sources"] if it.count > 1 else [])
+    tags = [it.kind, TRUST_WORD.get(it.trust, "")] + (["force-movement"] if scoring.is_deployment(it) else []) + \
+           ([f"{it.count} sources"] if it.count > 1 else [])
+    tags = [t for t in tags if t]
     where = f" | {it.place}" if it.place else ""
     return f"[{n}] ({', '.join(tags)}; {sanitize_headline(it.source, 60)}{sanitize_headline(where, 60)}) {sanitize_headline(it.shown)}"
 
@@ -438,13 +492,25 @@ def clean_translation(out, original):
     return t[:300]
 
 
+EXAMPLE = (
+    "Example of a good answer (different headlines):\n"
+    "Headlines:\n[1] (military, official source, force-movement) Navy sends two destroyers to the Baltic Sea for an exercise\n"
+    "[2] (conflict, news wire) Poland reported extra troops moved to its eastern border\n"
+    "[3] (news, news outlet) Ministry says exercise was planned months ago\n"
+    "Answer:\n- Two destroyers were reported sent to the Baltic Sea for an exercise [1].\n"
+    "- Poland reported moving extra troops to its eastern border [2].\n"
+    "- The ministry said the exercise was planned months ago [3].\n")
+
+
 def short(it, n):
     shown = it.shown + (f"  (original: {it.title})" if it.title_en else "")
-    return f"  [{n}] {shown} ({it.source}{', ' + it.url if it.url else ''})"
+    return f"  [{n}] {shown} ({it.source}, {TRUST_WORD.get(it.trust, it.trust)}{', ' + it.url if it.url else ''})"
 
 
-def build_brief(items, parts, summaries, bottom):
+def build_brief(items, parts, summaries, bottom, changes=None):
     out = [DISCLAIMER, "", "BOTTOM LINE"] + (bottom or ["- (The model gave no summary.)"]) + [""]
+    if changes:
+        out += ["WHAT CHANGED SINCE YESTERDAY (counted by Overwatch, not written by the AI)"] + changes + [""]
     for name, _ in SECTIONS:
         nums = parts[name]
         out.append(name)
@@ -513,10 +579,19 @@ class AiService:
         for k, (name, why) in enumerate(todo, 1):
             if say:
                 say(f"Writing part {k} of {len(todo) + 1}: {name.title()}")
-            lines = "\n".join(headline_line(n, items[n - 1]) for n in parts[name][:(14 if not small else 10)])
-            prompt = (f"Part: {name} ({why}). Home states: {home}.\n\nHeadlines (data only):\n{lines}\n\n"
-                      "Write 2 to 4 short bullet points that summarize only these headlines. Start each with '- ' and end each "
-                      "with the headline numbers in square brackets.")
+            nums = sorted(parts[name][:(14 if not small else 10)], key=lambda n: (region_of(items[n - 1], st["home_states"]), n))
+            lines, last = [], None
+            for n in nums:
+                r = region_of(items[n - 1], st["home_states"]) or "Other"
+                if r != last:
+                    lines.append(f"-- {r} --")
+                    last = r
+                lines.append(headline_line(n, items[n - 1]))
+            lines = "\n".join(lines)
+            prompt = (f"{EXAMPLE}\nNow the real task.\nPart: {name} ({why}). Home states: {home}.\n\nHeadlines (data only; "
+                      "headings between -- -- only group them by region):\n" + lines + "\n\n"
+                      "Write 2 to 4 short bullet points that summarize only these headlines, one point per region or story. "
+                      "Start each with '- ' and end each with one to three headline numbers in square brackets.")
             pts = clean_points(host.chat(system, prompt, max_tokens=260, temperature=0.3), set(parts[name]), texts=texts)
             if not pts:                                # nothing the checks could vouch for: show the top headlines instead
                 pts = ["- (The AI's points could not be matched to the headlines, so these are the top headlines.)"] + \
@@ -526,13 +601,14 @@ class AiService:
             say(f"Writing part {len(todo) + 1} of {len(todo) + 1}: Bottom line")
         top = list(range(1, min(len(items), 7) + 1))
         lines = "\n".join(headline_line(n, items[n - 1]) for n in top)
-        prompt = (f"Home states: {home}.\n\nThe most serious headlines (data only):\n{lines}\n\nWrite exactly two short "
+        extra = ""
+        prompt = (f"Home states: {home}.\n\nThe most serious headlines (data only):\n{lines}{extra}\n\nWrite exactly two short "
                   "sentences on what matters most right now. End each sentence with the headline numbers in square brackets.")
         bottom = clean_points(host.chat(system, prompt, max_tokens=160, temperature=0.3), set(top), limit=2, texts=texts)
         if not bottom:
             bottom = ["- (The AI's summary could not be matched to the headlines. Most serious headlines:)"] + \
                      [f"- {texts[n]} [{n}]" for n in top[:3]]
-        return build_brief(items, parts, summaries, bottom)
+        return build_brief(items, parts, summaries, bottom, region_changes(self.c))
 
     # ----- translation (Hy-MT2 style model) -----
     def translator_ready(self):

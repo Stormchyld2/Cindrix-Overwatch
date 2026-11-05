@@ -796,6 +796,50 @@ class Guardrails(unittest.TestCase):
                               set(t), texts=t)
         self.assertEqual(out, ["- Fighting reported near the town [1][2]."])
 
+    def test_confirmed_needs_confirmation(self):
+        src = {1: "Russia reportedly moves troops to the border"}
+        self.assertEqual(ai.clean_points("- Russia confirmed moving troops to the border [1].", {1}, texts=src), [])
+        self.assertEqual(len(ai.clean_points("- Russia reportedly moved troops to the border [1].", {1}, texts=src)), 1)
+
+    def test_regions_changes_and_new_deployment_words(self):
+        a = Item("x", "W", "conflict", "wire", "Russian drones hit Kyiv overnight", ts=1, uid="r1")
+        b = Item("x", "W", "military", "official", "Carrier near Taiwan Strait", ts=1, uid="r2")
+        h = Item("x", "W", "weather", "official", "Flood Warning: Polk, TN", ts=1, uid="r3")
+        h.states = ["TN"]
+        self.assertEqual(ai.region_of(a), "Ukraine and Russia")
+        self.assertEqual(ai.region_of(b), "East Asia")
+        self.assertEqual(ai.region_of(h, ["TN"]), "Home")
+        for t in ("Army airlift of troops to Poland begins", "Forces put on alert near the border", "Snap drill ordered"):
+            self.assertTrue(scoring.is_deployment(Item("x", "W", "news", "wire", t, ts=1, uid=t)), t)
+        self.assertFalse(scoring.is_deployment(Item("x", "W", "news", "wire", "Senate draft bill on farm subsidies", ts=1, uid="d")))
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        try:
+            rows = [Item("x", "W", "conflict", "wire", f"Fighting near Kharkiv story {k} Ukraine", ts=S.NOW - 600 - k, uid=f"n{k}") for k in range(5)]
+            rows += [Item("x", "W", "conflict", "wire", "Ukraine front quiet yesterday story", ts=S.NOW - 30 * 3600, uid="o1")]
+            c.store.upsert(rows, S.NOW)
+            lines = ai.region_changes(c)
+        finally:
+            c.close()
+        self.assertTrue(lines and "Ukraine and Russia" in lines[0] and "up from 1" in lines[0])
+
+    def test_prompt_has_example_regions_and_changes_section(self):
+        srv = FakeLlama("- Russian drones hit Kyiv overnight [1].")
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        c.ai.host_factory = lambda: ai.AiHost("", "", port=srv.port)
+        try:
+            rows = [Item("x", "Wire", "conflict", "wire", f"Russian drones hit Kyiv overnight report {k}", ts=S.NOW - 600 - k, uid=f"p{k}") for k in range(4)]
+            rows += [Item("y", "Wire", "conflict", "wire", "Ukraine older quiet day story here", ts=S.NOW - 30 * 3600, uid="p9")]
+            c.store.upsert(rows, S.NOW)
+            text = c.ai.write_brief()
+        finally:
+            srv.close()
+            c.close()
+        sent = srv.asked[0]["messages"][-1]["content"]
+        self.assertIn("Example of a good answer", sent)
+        self.assertIn("-- Ukraine and Russia --", sent)
+        self.assertIn("WHAT CHANGED SINCE YESTERDAY", text)
+        self.assertIn("news wire", text)
+
     def test_markdown_removed(self):
         out = ai.clean_points("- **Russia** reported a `mobilization` [1].", {1}, texts={1: "Russia reported a mobilization"})
         self.assertEqual(out, ["- Russia reported a mobilization [1]."])
