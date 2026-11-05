@@ -683,7 +683,7 @@ class LocalAi(unittest.TestCase):
             items, parts = ai.gather(c)
         finally:
             c.close()
-        self.assertEqual(sum(1 for i in items if i.source_id == "travel"), 3)
+        self.assertEqual(sum(1 for i in items if i.source_id == "travel"), 0)
         self.assertTrue(any(i.source_id == "mil" for i in items))
         self.assertTrue(parts["FORCE MOVEMENTS"])
 
@@ -789,6 +789,12 @@ class Guardrails(unittest.TestCase):
         uncited = "Everything is calm."
         out = ai.clean_points("\n".join("- " + x for x in (good, bad_num, bad_name, dose, predict, uncited)), {1, 2}, texts=src)
         self.assertEqual(out, ["- " + good])
+
+    def test_dumped_citations_are_dropped(self):
+        t = {n: "Fighting reported near the town" for n in range(1, 9)}
+        out = ai.clean_points("- Fighting reported near the town [1][2][3][4][5][6][7].\n- Fighting reported near the town [1][2].",
+                              set(t), texts=t)
+        self.assertEqual(out, ["- Fighting reported near the town [1][2]."])
 
     def test_markdown_removed(self):
         out = ai.clean_points("- **Russia** reported a `mobilization` [1].", {1}, texts={1: "Russia reported a mobilization"})

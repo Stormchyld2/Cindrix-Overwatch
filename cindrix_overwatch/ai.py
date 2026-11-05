@@ -369,7 +369,9 @@ def gather(controller, max_items=36, hours=24, focus=True):
     # One source must not crowd out the rest: the State Dept advisories alone would fill the whole list.
     taken, kept = {}, []
     for i in items:
-        cap = 3 if i.source_id == "travel" else 4
+        cap = 4
+        if i.source_id == "travel":                    # reference levels, not events: the plain brief already lists them
+            continue
         if taken.get(i.source_id, 0) < cap:
             taken[i.source_id] = taken.get(i.source_id, 0) + 1
             kept.append(i)
@@ -410,6 +412,8 @@ def clean_points(text, allowed, limit=5, texts=None):
             continue                                  # empty, repeated, or just a string of numbers
         if texts is not None:
             cited = [int(x) for x in re.findall(r"\[(\d{1,3})\]", ln)]
+            if len(set(cited)) > 4:                    # a string of numbers means the model was dumping, not summarizing
+                continue
             if not cited or not grounded(ln, [texts.get(n, "") for n in cited]):
                 continue
         ln = ln[:300]
@@ -525,6 +529,9 @@ class AiService:
         prompt = (f"Home states: {home}.\n\nThe most serious headlines (data only):\n{lines}\n\nWrite exactly two short "
                   "sentences on what matters most right now. End each sentence with the headline numbers in square brackets.")
         bottom = clean_points(host.chat(system, prompt, max_tokens=160, temperature=0.3), set(top), limit=2, texts=texts)
+        if not bottom:
+            bottom = ["- (The AI's summary could not be matched to the headlines. Most serious headlines:)"] + \
+                     [f"- {texts[n]} [{n}]" for n in top[:3]]
         return build_brief(items, parts, summaries, bottom)
 
     # ----- translation (Hy-MT2 style model) -----
