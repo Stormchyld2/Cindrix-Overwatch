@@ -29,6 +29,8 @@ class Item:
     count: int = 1                  # how many sources report the same story (set when grouping)
     uid: str = ""
     first_seen: float = 0.0         # when Overwatch first saw it (set by the store)
+    title_en: str = ""              # English translation of the title, when one was made (kept apart from the original)
+    summary_en: str = ""
 
     def __post_init__(self):
         self.title = " ".join((self.title or "").split())[:300]
@@ -41,6 +43,11 @@ class Item:
         if not self.uid:
             key = f"{self.source_id}|{self.url or self.title}|{self.title if not self.url else ''}"
             self.uid = hashlib.sha1(key.encode("utf-8", "replace")).hexdigest()[:20]
+
+    @property
+    def shown(self):
+        """The title to show: the English one when there is one, else the original."""
+        return self.title_en or self.title
 
     @property
     def pinned(self):

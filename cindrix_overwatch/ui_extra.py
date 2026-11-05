@@ -8,7 +8,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import ttk
 
-from . import discover, reader, sources, theme, tor
+from . import ai, discover, reader, sources, theme, tor
 
 
 def _entry(parent, var, width):
@@ -319,5 +319,29 @@ def build_ai_tab(app, p):
     tk.Checkbutton(card, text="Let the brief use the AI", variable=app.ai_enabled_var, command=app._save_ai, bg=theme.PANEL,
                    fg=theme.BONE, selectcolor=theme.CHARCOAL, activebackground=theme.PANEL, activeforeground=theme.BONE
                    ).pack(anchor="w", padx=16, pady=(6, 2))
+    app.ai_auto_var = tk.BooleanVar(value=bool(c.settings.get("auto_translate", True)))
+    tk.Checkbutton(card, text="Translate headlines in other languages to English automatically (needs the translation model)",
+                   variable=app.ai_auto_var, command=app._save_ai, bg=theme.PANEL, fg=theme.BONE, selectcolor=theme.CHARCOAL,
+                   activebackground=theme.PANEL, activeforeground=theme.BONE).pack(anchor="w", padx=16, pady=2)
+    app.ai_focus_var = tk.BooleanVar(value=bool(c.settings.get("ai_focus", True)))
+    tk.Checkbutton(card, text="Keep the AI focused: leave sports, entertainment and celebrity news out of the brief",
+                   variable=app.ai_focus_var, command=app._save_ai, bg=theme.PANEL, fg=theme.BONE, selectcolor=theme.CHARCOAL,
+                   activebackground=theme.PANEL, activeforeground=theme.BONE).pack(anchor="w", padx=16, pady=2)
     app.ai_status = tk.Label(card, justify="left", anchor="w", wraplength=980, font=app.f_body, fg=theme.BONE, bg=theme.PANEL)
-    app.ai_status.pack(fill="x", padx=16, pady=(6, 14))
+    app.ai_status.pack(fill="x", padx=16, pady=(6, 8))
+    app.label(card, "Standing instructions for the AI (what to watch for and stress)", app.f_bold, bg=theme.PANEL
+              ).pack(fill="x", padx=16, pady=(6, 2))
+    tk.Label(card, justify="left", anchor="w", wraplength=980, font=app.f_small, fg=theme.MUTED, bg=theme.PANEL,
+             text=("These guide the brief. Fixed safety rules always apply on top and cannot be changed here: only the numbered "
+                   "headlines are used, every point must cite them, no predictions, no medicine doses, and anything that "
+                   "cannot be matched to a headline is dropped.")).pack(fill="x", padx=16)
+    app.ai_instr = tk.Text(card, height=7, width=110, wrap="word", font=app.f_body, bg=theme.CHARCOAL, fg=theme.BONE,
+                           insertbackground=theme.BONE, relief="flat", padx=8, pady=6)
+    app.ai_instr.pack(anchor="w", padx=16, pady=6)
+    app.ai_instr.insert("1.0", ai.instructions_text(c.settings.get("ai_instructions", "")))
+    row2 = tk.Frame(card, bg=theme.PANEL)
+    row2.pack(fill="x", padx=16, pady=(0, 14))
+    app.btn(row2, "Save instructions", app._save_instructions, primary=True, small=True).pack(side="left")
+    app.btn(row2, "Reset to built-in", app._reset_instructions, small=True).pack(side="left", padx=8)
+    app.ai_instr_note = tk.Label(row2, text="", font=app.f_small, fg=theme.MUTED, bg=theme.PANEL)
+    app.ai_instr_note.pack(side="left", padx=8)

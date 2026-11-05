@@ -87,6 +87,8 @@ def main():
         app.settings_tabs.select(3)
         pump(app, 0.1)
         assert "Cindrix folder" in app.ai_status.cget("text") or "No Cindrix folder" in app.ai_status.cget("text")
+        assert "early warning" in app.ai_instr.get("1.0", "end") or "emergency" in app.ai_instr.get("1.0", "end")
+        assert app.c.settings["auto_translate"] is True and app.ai_auto_var.get() is True
         app.show_page("brief")
         assert str(app.ai_brief_btn.cget("state")) == "disabled"
 

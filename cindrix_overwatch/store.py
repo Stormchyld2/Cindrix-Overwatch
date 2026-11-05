@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS items (
 CREATE INDEX IF NOT EXISTS items_ts ON items(ts);
 CREATE TABLE IF NOT EXISTS health (
   source_id TEXT PRIMARY KEY, ok INTEGER, last_ok REAL, last_try REAL, count INTEGER, error TEXT);
+CREATE TABLE IF NOT EXISTS translations (uid TEXT PRIMARY KEY, title_en TEXT, summary_en TEXT, ts REAL);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 """
 COLS = "uid,source_id,source,kind,trust,title,url,summary,ts,lat,lon,place,severity,states,first_seen,last_seen"
@@ -61,7 +62,22 @@ class Store:
         with self.lock:
             rows = self.db.execute(f"SELECT {COLS} FROM items WHERE ts>=? ORDER BY ts DESC LIMIT ?",
                                    (since_ts, limit)).fetchall()
-        return [self._item(r) for r in rows]
+            tr = {r[0]: (r[1], r[2]) for r in self.db.execute("SELECT uid,title_en,summary_en FROM translations")}
+        out = [self._item(r) for r in rows]
+        for it in out:
+            if it.uid in tr:
+                it.title_en, it.summary_en = tr[it.uid][0] or "", tr[it.uid][1] or ""
+        return out
+
+    # translations are kept in their own table so the original text is never touched
+    def set_translation(self, uid, title_en, summary_en, now):
+        with self.lock:
+            self.db.execute("INSERT OR REPLACE INTO translations VALUES (?,?,?,?)", (uid, title_en, summary_en, now))
+            self.db.commit()
+
+    def tried_translation(self, uid):
+        with self.lock:
+            return self.db.execute("SELECT 1 FROM translations WHERE uid=?", (uid,)).fetchone() is not None
 
     def count(self):
         with self.lock:
@@ -74,11 +90,13 @@ class Store:
     def prune(self, older_than_ts):
         with self.lock:
             self.db.execute("DELETE FROM items WHERE ts<? AND first_seen<?", (older_than_ts, older_than_ts))
+            self.db.execute("DELETE FROM translations WHERE uid NOT IN (SELECT uid FROM items)")
             self.db.commit()
 
     def clear(self):
         with self.lock:
             self.db.execute("DELETE FROM items")
+            self.db.execute("DELETE FROM translations")
             self.db.execute("DELETE FROM health")
             self.db.commit()
 

@@ -20,7 +20,8 @@ from .store import Store
 MAX_BYTES = 5_000_000
 KEEP_DAYS = 30
 DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15,
-                    "onion_addresses": {}, "my_outlets": [], "ai_root": "", "ai_enabled": False}
+                    "onion_addresses": {}, "my_outlets": [], "ai_root": "", "ai_enabled": False,
+                    "auto_translate": True, "ai_focus": True, "ai_instructions": ""}
 
 
 ACCEPT = "application/rss+xml, application/atom+xml, application/xml, application/json, text/xml, */*;q=0.8"
@@ -319,7 +320,7 @@ class Controller:
                 continue
             if deploy_only and not scoring.is_deployment(it):
                 continue
-            if text and text not in (it.title + " " + it.summary + " " + it.source + " " + it.place).lower():
+            if text and text not in (it.title + " " + it.title_en + " " + it.summary + " " + it.source + " " + it.place).lower():
                 continue
             out.append(it)
         return out[:limit]
@@ -353,13 +354,13 @@ class Controller:
         from .model import TRUST_LABELS
         for it in top:
             more = f", {it.count} sources" if it.count > 1 else ""
-            lines.append(f"  - {it.title} ({it.source}; {TRUST_LABELS[it.trust].lower()}{more})")
+            lines.append(f"  - {it.shown} ({it.source}; {TRUST_LABELS[it.trust].lower()}{more})")
         if not top:
             lines.append("  Nothing saved yet. Refresh while online.")
         home = [i for i in day if scoring.is_home(i, self.settings['home_states'])]
         lines += ["", f"Home ({', '.join(self.settings['home_states']) or 'not set'}): {len(home)} items."]
         for it in home[:8]:
-            lines.append(f"  - {it.title}")
+            lines.append(f"  - {it.shown}")
         return "\n".join(lines)
 
     def export_sources(self, path=None):

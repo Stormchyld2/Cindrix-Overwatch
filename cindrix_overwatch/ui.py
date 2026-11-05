@@ -10,7 +10,7 @@ import webbrowser
 from tkinter import font as tkfont
 from tkinter import messagebox, ttk
 
-from . import __version__, geo, theme
+from . import __version__, ai, geo, theme
 from .engine import Controller
 from .mapview import WorldMap
 from . import tor as _tor, torbrowser, ui_extra
@@ -258,6 +258,12 @@ class App:
         self.sel_open = self.btn(self.sel, "Open page", self._open_selected, primary=True, small=True)
         self.sel_open.place(relx=1.0, x=-14, y=10, anchor="ne")
         self.sel_open.place_forget()
+        self.sel_tr = self.btn(self.sel, "Translate", self._translate_selected, small=True)
+        self.sel_tr.place(relx=1.0, x=-14, y=48, anchor="ne")
+        self.sel_tr.place_forget()
+        self.sel_note = self.label(self.sel, "", self.f_small, theme.MUTED)
+        self.sel_note.place(relx=1.0, x=-14, y=82, anchor="ne")
+        self.show_original = False
         self.timeline = tk.Canvas(mid, bg=theme.PANEL, height=64, highlightthickness=0)
         self.timeline.grid(row=3, column=0, sticky="ew", pady=(6, 0))
         self.timeline.bind("<Configure>", lambda e: self._render_timeline())
@@ -366,11 +372,13 @@ class App:
             parts.append(("NEW", theme.BLUE))
         if set(it.states) & set(self.c.settings["home_states"]):
             parts.append(("HOME", theme.BLUE))
+        if it.title_en:
+            parts.append(("TRANSLATED", theme.MUTED))
         for text, c in parts:
             tk.Label(meta, text=text, font=self.f_small, fg=c, bg=theme.PANEL_HIGH).pack(side="left", padx=(0, 6))
         tk.Label(meta, text=f"{it.source}  ·  {ago(it.ts, self.c.now())}", font=self.f_small, fg=theme.MUTED,
                  bg=theme.PANEL_HIGH).pack(side="left")
-        tk.Label(box, text=it.title, font=self.f_bold, fg=theme.BONE, bg=theme.PANEL_HIGH, anchor="w", justify="left",
+        tk.Label(box, text=it.shown, font=self.f_bold, fg=theme.BONE, bg=theme.PANEL_HIGH, anchor="w", justify="left",
                  wraplength=300).pack(fill="x")
         sub = TRUST_LABELS[it.trust] + (f", {it.count} sources" if it.count > 1 else "")
         tk.Label(box, text=sub, font=self.f_small, fg=theme.MUTED, bg=theme.PANEL_HIGH, anchor="w").pack(fill="x")
@@ -439,9 +447,11 @@ class App:
     # ----- selection -----
     def select(self, item, from_feed=False):
         self.selected = item
+        self.show_original = False
+        self.sel_note.configure(text="")
         self.sel_kind.configure(text=KIND_LABELS[item.kind] + ("  ·  " + SEVERITY_WORDS[item.severity]),
                                 fg=theme.KIND_COLORS.get(item.kind, theme.MUTED))
-        self.sel_title.configure(text=item.title)
+        self._show_sel_title()
         more = f"  ·  {item.count} sources" if item.count > 1 else ""
         place = f"  ·  {item.place}" if item.place else ""
         self.sel_meta.configure(text=f"{item.source}  ·  {TRUST_LABELS[item.trust]}{more}{place}  ·  "
@@ -450,9 +460,80 @@ class App:
             self.sel_open.place(relx=1.0, x=-14, y=10, anchor="ne")
         else:
             self.sel_open.place_forget()
+        self.sel_tr.place(relx=1.0, x=-14, y=48, anchor="ne")
+        self._label_translate_button()
         self.map.select(item)
         if from_feed and item.pinned:
             self.map.center_on(item.lat, item.lon)
+
+    def _show_sel_title(self):
+        it = self.selected
+        if not it:
+            return
+        text = it.title if self.show_original else it.shown
+        if it.summary_en and not self.show_original:
+            text += "\n" + it.summary_en[:160]
+        self.sel_title.configure(text=text)
+
+    def _label_translate_button(self):
+        it = self.selected
+        if it and it.title_en:
+            self.sel_tr.configure(text="Show original" if not self.show_original else "Show English")
+        else:
+            self.sel_tr.configure(text="Translate")
+
+    def _translate_selected(self):
+        it = self.selected
+        if not it:
+            return
+        if it.title_en:                                   # already translated: flip between the two texts
+            self.show_original = not self.show_original
+            self._show_sel_title()
+            self._label_translate_button()
+            return
+        from . import lang
+        if not lang.looks_foreign(it.title):
+            self.sel_note.configure(text="This looks like English already.", fg=theme.MUTED)
+            return
+        if not self.c.ai.translator_ready():
+            self.sel_note.configure(text="Pick the Cindrix folder in Settings > AI first.", fg=theme.AMBER)
+            return
+        self.sel_tr.configure(state="disabled")
+        self.sel_note.configure(text="Translating...", fg=theme.MUTED)
+
+        def say(m):
+            self.root.after(0, lambda: self.sel_note.configure(text=m))
+
+        def done(kind, val):
+            self.sel_tr.configure(state="normal")
+            if kind == "err":
+                self.sel_note.configure(text=str(val), fg=theme.RED)
+                return
+            self.sel_note.configure(text="Translated by the AI on this PC. The original is kept.", fg=theme.MUTED)
+            if self.selected is it:
+                self.show_original = False
+                self._show_sel_title()
+                self._label_translate_button()
+            self.refresh_view()
+        ui_extra.Worker(self.root, lambda: self.c.ai.translate_item(it, say), done)
+
+    def _auto_translate(self):
+        """After a refresh: translate new non-English headlines in the background, then redraw."""
+        if getattr(self, "_translating", False) or not self.c.settings.get("auto_translate", True):
+            return
+        if not self.c.ai.translator_ready():
+            return
+        self._translating = True
+
+        def run():
+            n = 0
+            try:
+                n = self.c.ai.auto_translate(lambda m: self.q.put(("p", m)))
+            except Exception:
+                pass
+            self._translating = False
+            self.q.put(("tr", n))
+        threading.Thread(target=run, daemon=True).start()
 
     def _open_selected(self):
         if self.selected:
@@ -553,9 +634,23 @@ class App:
     def _save_ai(self):
         self.c.settings["ai_root"] = self.ai_root_var.get().strip()
         self.c.settings["ai_enabled"] = bool(self.ai_enabled_var.get())
+        self.c.settings["auto_translate"] = bool(self.ai_auto_var.get())
+        self.c.settings["ai_focus"] = bool(self.ai_focus_var.get())
         self.c.save_settings()
         self._render_ai()
         self._render_brief_buttons()
+
+    def _save_instructions(self):
+        text = self.ai_instr.get("1.0", "end").strip()
+        self.c.settings["ai_instructions"] = "" if text == ai.DEFAULT_INSTRUCTIONS else text
+        self.c.save_settings()
+        self.ai_instr_note.configure(text="Saved. The next AI brief follows these.", fg=theme.GREEN)
+
+    def _reset_instructions(self):
+        self.ai_instr.delete("1.0", "end")
+        self.ai_instr.insert("1.0", ai.DEFAULT_INSTRUCTIONS)
+        self._save_instructions()
+        self.ai_instr_note.configure(text="Back to the built-in instructions.", fg=theme.GREEN)
 
     def _render_brief_buttons(self):
         ok = self.c.settings.get("ai_enabled") and self.c.ai.status()["message"] == "Ready to use."
@@ -837,9 +932,15 @@ class App:
                     self.status_top.configure(text=val)
                     if self.splash_win:
                         self.splash_status.configure(text=val)
+                elif kind == "tr":
+                    if val:
+                        self.refresh_view()
+                    self._status()
                 elif kind in ("done", "err"):
                     self.last_result = val if kind == "done" else None
                     self.refresh_view()
+                    if kind == "done":
+                        self._auto_translate()
                     if kind == "err":
                         self.status_top.configure(text="Refresh problem: " + val)
                     self._close_splash_soon()
