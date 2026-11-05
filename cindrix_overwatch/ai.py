@@ -78,10 +78,21 @@ def pick_chat_model(files, ram_gb):
 
 
 def locate(root):
-    """Looks for the Cindrix program folder: root itself, or a folder inside it called Cindrix."""
-    for base in (root, os.path.join(root, "Cindrix")):
-        if base and os.path.isdir(os.path.join(base, "models")):
+    """Finds the Cindrix program folder. Accepts the folder itself, a folder that holds one called Cindrix, a drive
+    with a models folder, or the models folder itself (a folder named models, or one with .gguf files directly in it)."""
+    if not root:
+        return ""
+    r = root.rstrip("\\/")
+    if os.path.basename(r).lower() == "models" and os.path.isdir(r):
+        return os.path.dirname(r)
+    for base in (r, os.path.join(r, "Cindrix")):
+        if os.path.isdir(os.path.join(base, "models")):
             return base
+    try:
+        if any(f.lower().endswith(".gguf") for f in os.listdir(r)):
+            return os.path.dirname(r)
+    except OSError:
+        pass
     return ""
 
 
@@ -114,7 +125,13 @@ def find_engine(root, base, override=""):
 def inventory(root, ram_gb=None, engine_override=""):
     """What is available under the chosen folder, in words and paths."""
     base = locate(root) if root else ""
-    info = {"base": base, "engine": "", "chat": "", "mt": "", "files": [], "message": ""}
+    mdir = os.path.join(base, "models") if base else ""
+    r0 = (root or "").rstrip("\\/")
+    if base and not os.path.isdir(mdir) and os.path.isdir(r0):
+        mdir = r0                                       # the chosen folder holds the model files directly
+    elif base and os.path.basename(r0).lower() == "models":
+        mdir = r0
+    info = {"base": base, "models": mdir, "engine": "", "chat": "", "mt": "", "files": [], "message": ""}
     if not root:
         info["message"] = "No Cindrix folder chosen yet."
         return info
@@ -123,7 +140,7 @@ def inventory(root, ram_gb=None, engine_override=""):
         return info
     info["engine"] = find_engine(root, base, engine_override)
     try:
-        files = sorted(f for f in os.listdir(os.path.join(base, "models")) if f.lower().endswith(".gguf"))
+        files = sorted(f for f in os.listdir(mdir) if f.lower().endswith(".gguf"))
     except OSError:
         files = []
     info["files"] = files
@@ -434,7 +451,7 @@ class AiService:
                 if info["message"] != "Ready to use.":
                     raise RuntimeError(info["message"])
                 ram = total_ram_gb()
-                model = os.path.join(info["base"], "models", info["chat"])
+                model = os.path.join(info["models"], info["chat"])
                 self.host = AiHost(info["engine"], model, ctx=4096 if ram >= 6 else 2048)
             if say:
                 say("Starting the model on this PC")
@@ -487,7 +504,7 @@ class AiService:
             raise RuntimeError("No translation model in the models folder yet (a file with MT in its name).")
         if not info["engine"]:
             raise RuntimeError("The model engine (llama-server) was not found in the engines folder.")
-        return AiHost(info["engine"], os.path.join(info["base"], "models", info["mt"]), ctx=2048)
+        return AiHost(info["engine"], os.path.join(info["models"], info["mt"]), ctx=2048)
 
     @staticmethod
     def _mt_ask(host, text, target):

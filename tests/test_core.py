@@ -645,6 +645,18 @@ class LocalAi(unittest.TestCase):
         open(other, "wb").close()
         self.assertEqual(ai.inventory(d, ram_gb=8, engine_override=other)["engine"], other)
 
+    def test_models_folder_itself_is_accepted(self):
+        import os
+        d = tempfile.mkdtemp()
+        m = os.path.join(d, "models")
+        os.makedirs(m)
+        open(os.path.join(m, "Qwen3.5-2B-Q4_K_M.gguf"), "wb").close()
+        self.assertEqual(ai.inventory(m, ram_gb=8)["chat"], "Qwen3.5-2B-Q4_K_M.gguf")
+        self.assertEqual(ai.inventory(m + "/", ram_gb=8)["base"], d)
+        loose = tempfile.mkdtemp()
+        open(os.path.join(loose, "Qwen3.5-4B-Q4_K_M.gguf"), "wb").close()
+        self.assertEqual(ai.inventory(loose, ram_gb=16)["chat"], "Qwen3.5-4B-Q4_K_M.gguf")
+
     def make_controller(self, reply):
         srv = FakeLlama(reply)
         c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW,

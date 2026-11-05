@@ -183,6 +183,7 @@ class App:
         for k, b in self.nav.items():
             b.configure(bg=theme.BLUE if k == key else theme.PANEL, fg=theme.ON_BLUE if k == key else theme.BONE)
         if key == "brief":
+            self._render_brief_buttons()
             self._render_brief()
         elif key == "settings":
             self._render_sources()
@@ -658,7 +659,12 @@ class App:
         ok = self.c.settings.get("ai_enabled") and self.c.ai.status()["message"] == "Ready to use."
         self.ai_brief_btn.configure(state="normal" if ok else "disabled")
         if not ok:
-            self.brief_note.configure(text="AI brief is off. Turn it on in Settings > AI.", fg=theme.MUTED)
+            st = self.c.ai.status()
+            why = ("AI brief is off. Turn it on in Settings > AI." if not self.c.settings.get("ai_enabled")
+                   else "AI is on but not ready: " + st["message"])
+            self.brief_note.configure(text=why, fg=theme.AMBER if self.c.settings.get("ai_enabled") else theme.MUTED)
+        elif self.brief_note.cget("text").startswith(("AI brief is off", "AI is on but")):
+            self.brief_note.configure(text="Ready. Press the button to write the AI brief.", fg=theme.MUTED)
 
     def _write_ai_brief(self):
         self.ai_brief_btn.configure(state="disabled")
