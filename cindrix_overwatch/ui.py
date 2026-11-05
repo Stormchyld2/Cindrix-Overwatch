@@ -638,6 +638,7 @@ class App:
         self.c.settings["ai_root"] = self.ai_root_var.get().strip()
         self.c.settings["ai_enabled"] = bool(self.ai_enabled_var.get())
         self.c.settings["ai_engine"] = self.ai_engine_var.get().strip()
+        self.c.settings["ai_model"] = self.ai_model_var.get()
         self.c.settings["auto_translate"] = bool(self.ai_auto_var.get())
         self.c.settings["ai_focus"] = bool(self.ai_focus_var.get())
         self.c.save_settings()

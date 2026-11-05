@@ -329,6 +329,15 @@ def build_ai_tab(app, p):
                                    filetypes=[("llama-server", "llama-server*"), ("All files", "*.*")]) or app.ai_engine_var.get()),
             small=True).pack(side="left", padx=8)
     app.btn(row_e, "Save", app._save_ai, primary=True, small=True).pack(side="left")
+    app.label(card, "Chat model size (4B reads better but needs about 4 GB of free memory)", app.f_bold, bg=theme.PANEL
+              ).pack(fill="x", padx=16, pady=(8, 2))
+    app.ai_model_var = tk.StringVar(value=c.settings.get("ai_model", "auto"))
+    rowm = tk.Frame(card, bg=theme.PANEL)
+    rowm.pack(fill="x", padx=16, pady=2)
+    for val, text in (("auto", "Automatic"), ("2b", "2B (faster)"), ("4b", "4B (better)")):
+        tk.Radiobutton(rowm, text=text, value=val, variable=app.ai_model_var, command=app._save_ai, bg=theme.PANEL,
+                       fg=theme.BONE, selectcolor=theme.CHARCOAL, activebackground=theme.PANEL,
+                       activeforeground=theme.BONE).pack(side="left", padx=(0, 14))
     app.ai_enabled_var = tk.BooleanVar(value=bool(c.settings.get("ai_enabled", False)))
     tk.Checkbutton(card, text="Let the brief use the AI", variable=app.ai_enabled_var, command=app._save_ai, bg=theme.PANEL,
                    fg=theme.BONE, selectcolor=theme.CHARCOAL, activebackground=theme.PANEL, activeforeground=theme.BONE

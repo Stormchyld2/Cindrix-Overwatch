@@ -666,6 +666,27 @@ class LocalAi(unittest.TestCase):
         self.assertEqual(ai.clean_root("/"), "/")
         self.assertEqual(ai.clean_root(""), "")
 
+    def test_one_source_cannot_fill_the_brief_and_model_size_can_be_chosen(self):
+        files = ["Qwen3.5-2B-Q4_K_M.gguf", "Qwen3.5-4B-Q4_K_M.gguf"]
+        self.assertEqual(ai.pick_chat_model(files, 8, "4b"), "Qwen3.5-4B-Q4_K_M.gguf")
+        self.assertEqual(ai.pick_chat_model(files, 32, "2b"), "Qwen3.5-2B-Q4_K_M.gguf")
+        self.assertEqual(ai.pick_chat_model(files, 8, "auto"), "Qwen3.5-2B-Q4_K_M.gguf")
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        try:
+            rows = [Item("travel", "State Dept travel advisories", "news", "official", f"Country{k} - Level 4: Do Not Travel",
+                         ts=S.NOW - 60 - k, uid=f"t{k}", severity=3) for k in range(13)]
+            rows += [Item("wire1", "Wire", "conflict", "wire", f"Fighting reported near town number {k} on the front line",
+                          ts=S.NOW - 600 - k, uid=f"w{k}", severity=1) for k in range(3)]
+            rows.append(Item("mil", "Navy", "military", "official", "Carrier strike group deploys to the Mediterranean",
+                             ts=S.NOW - 900, uid="m1", severity=1))
+            c.store.upsert(rows, S.NOW)
+            items, parts = ai.gather(c)
+        finally:
+            c.close()
+        self.assertEqual(sum(1 for i in items if i.source_id == "travel"), 3)
+        self.assertTrue(any(i.source_id == "mil" for i in items))
+        self.assertTrue(parts["FORCE MOVEMENTS"])
+
     def make_controller(self, reply):
         srv = FakeLlama(reply)
         c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW,

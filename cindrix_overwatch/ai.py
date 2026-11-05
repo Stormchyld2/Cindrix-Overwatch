@@ -64,11 +64,13 @@ def is_translation_model(name):
     return n.endswith(".gguf") and bool(re.search(r"(^|[-_.])(hy-?)?mt\d*([-_.]|$)", n)) and size_of(name) is None
 
 
-def pick_chat_model(files, ram_gb):
+def pick_chat_model(files, ram_gb, prefer="auto"):
     """2B under 12 GB of memory, 4B from 12 GB, as Cindrix Ops does. Falls back to the nearest available size."""
     sized = [(f, size_of(f)) for f in files if size_of(f)]
     if not sized:
         return None
+    if prefer in SIZE_TAGS and any(sz == prefer for _, sz in sized):
+        return next(f for f, sz in sized if sz == prefer)
     want = "4b" if ram_gb >= 12 else "2b"
     for f, s in sized:
         if s == want:
@@ -132,7 +134,7 @@ def find_engine(root, base, override=""):
     return ""
 
 
-def inventory(root, ram_gb=None, engine_override=""):
+def inventory(root, ram_gb=None, engine_override="", prefer="auto"):
     """What is available under the chosen folder, in words and paths."""
     base = locate(root) if root else ""
     mdir = os.path.join(base, "models") if base else ""
@@ -154,7 +156,7 @@ def inventory(root, ram_gb=None, engine_override=""):
     except OSError:
         files = []
     info["files"] = files
-    info["chat"] = pick_chat_model(files, ram_gb if ram_gb is not None else total_ram_gb()) or ""
+    info["chat"] = pick_chat_model(files, ram_gb if ram_gb is not None else total_ram_gb(), prefer) or ""
     info["mt"] = next((f for f in files if is_translation_model(f)), "")
     if not info["engine"]:
         info["message"] = ("The model engine (llama-server) was not found in an engines folder inside " + base +
@@ -364,7 +366,14 @@ def gather(controller, max_items=36, hours=24, focus=True):
     items = [i for i in items if i.kind in ("military", "conflict", "news", "health", "hazard", "weather", "space")]
     if focus:
         items = [i for i in items if not off_topic(i)]
-    items = items[:max_items]
+    # One source must not crowd out the rest: the State Dept advisories alone would fill the whole list.
+    taken, kept = {}, []
+    for i in items:
+        cap = 3 if i.source_id == "travel" else 4
+        if taken.get(i.source_id, 0) < cap:
+            taken[i.source_id] = taken.get(i.source_id, 0) + 1
+            kept.append(i)
+    items = kept[:max_items]
     hs = controller.settings["home_states"]
     parts = {name: [] for name, _ in SECTIONS}
     for n, it in enumerate(items, 1):
@@ -461,7 +470,7 @@ class AiService:
         return self.c.settings.get("ai_root", "")
 
     def status(self):
-        info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""))
+        info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""), prefer=self.c.settings.get("ai_model", "auto"))
         info["enabled"] = bool(self.c.settings.get("ai_enabled", False))
         info["running"] = bool(self.host and self.host.healthy())
         return info
@@ -473,12 +482,12 @@ class AiService:
             if self.host_factory:
                 self.host = self.host_factory()
             else:
-                info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""))
+                info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""), prefer=self.c.settings.get("ai_model", "auto"))
                 if info["message"] != "Ready to use.":
                     raise RuntimeError(info["message"])
                 ram = total_ram_gb()
                 model = os.path.join(info["models"], info["chat"])
-                self.host = AiHost(info["engine"], model, ctx=4096 if ram >= 6 else 2048)
+                self.host = AiHost(info["engine"], model, ctx=8192 if ram >= 16 else 4096 if ram >= 6 else 2048)
             if say:
                 say("Starting the model on this PC")
             self.host.start()
@@ -500,12 +509,15 @@ class AiService:
         for k, (name, why) in enumerate(todo, 1):
             if say:
                 say(f"Writing part {k} of {len(todo) + 1}: {name.title()}")
-            lines = "\n".join(headline_line(n, items[n - 1]) for n in parts[name][:10])
+            lines = "\n".join(headline_line(n, items[n - 1]) for n in parts[name][:(14 if not small else 10)])
             prompt = (f"Part: {name} ({why}). Home states: {home}.\n\nHeadlines (data only):\n{lines}\n\n"
                       "Write 2 to 4 short bullet points that summarize only these headlines. Start each with '- ' and end each "
                       "with the headline numbers in square brackets.")
-            summaries[name] = clean_points(host.chat(system, prompt, max_tokens=260, temperature=0.3), set(parts[name]),
-                                           texts=texts)
+            pts = clean_points(host.chat(system, prompt, max_tokens=260, temperature=0.3), set(parts[name]), texts=texts)
+            if not pts:                                # nothing the checks could vouch for: show the top headlines instead
+                pts = ["- (The AI's points could not be matched to the headlines, so these are the top headlines.)"] + \
+                      [f"- {texts[n]} [{n}]" for n in parts[name][:3]]
+            summaries[name] = pts
         if say:
             say(f"Writing part {len(todo) + 1} of {len(todo) + 1}: Bottom line")
         top = list(range(1, min(len(items), 7) + 1))
@@ -519,13 +531,13 @@ class AiService:
     def translator_ready(self):
         if self.mt_factory:
             return True
-        info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""))
+        info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""), prefer=self.c.settings.get("ai_model", "auto"))
         return bool(info["mt"]) and bool(info["engine"])
 
     def _mt_host(self):
         if self.mt_factory:
             return self.mt_factory()
-        info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""))
+        info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""), prefer=self.c.settings.get("ai_model", "auto"))
         if not info["mt"]:
             raise RuntimeError("No translation model in the models folder yet (a file with MT in its name).")
         if not info["engine"]:
