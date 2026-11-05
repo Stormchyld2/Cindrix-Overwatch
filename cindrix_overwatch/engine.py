@@ -144,6 +144,8 @@ class Controller:
                 onion = "http://" + onion
             if not tor.is_onion_url(onion):
                 raise ValueError("That is not a valid .onion address. A current one is 56 letters and numbers followed by .onion.")
+            if not tor.onion_checksum_ok(urlparse(onion).hostname):
+                raise ValueError("That onion address looks mistyped (its built-in check fails). Copy it again from the site itself.")
         if not home and not onion:
             raise ValueError("Give a website address, an onion address, or both.")
         if len(self.settings["my_outlets"]) >= 60:
@@ -167,6 +169,8 @@ class Controller:
             addr = "http://" + addr
         if not tor.is_onion_url(addr):
             raise ValueError("That is not a valid .onion address. A current one is 56 letters and numbers followed by .onion.")
+        if not tor.onion_checksum_ok(urlparse(addr).hostname):
+            raise ValueError("That onion address looks mistyped (its built-in check fails). Copy it again from the site itself.")
         if not urlparse(addr).path:
             addr += "/"
         self.settings["onion_addresses"][name] = addr

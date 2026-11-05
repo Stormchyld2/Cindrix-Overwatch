@@ -255,7 +255,7 @@ import struct
 
 from cindrix_overwatch import discover, reader, tor
 
-ONION = "a" * 56 + ".onion"
+ONION = "bbcnewsd73hkzno2ini43t4gblxvycyac5aw4gnv7t2rccijh7745uqd.onion"
 HOME_HTML = ('<html><head><title>X</title><link rel="alternate" type="application/rss+xml" title="Top" href="/top.rss">'
              '<link rel="stylesheet" href="/s.css"></head><body>hi</body></html>')
 
@@ -923,4 +923,24 @@ class Translation(unittest.TestCase):
             self.assertEqual(len(srv.asked), 2)
         finally:
             srv.close()
+            c.close()
+
+
+class OnionChecksums(unittest.TestCase):
+    def test_every_supplied_onion_has_a_good_checksum(self):
+        from cindrix_overwatch import tor as _t
+        bad = [n for n, u in sources.SUPPLIED_ONIONS.items() if not _t.onion_checksum_ok(u.split("//")[1])]
+        self.assertEqual(bad, [])
+        self.assertFalse(_t.onion_checksum_ok("dwnewsvdyyiamwnp46jrov7e5rtzvaap73pnv3gowvtvo4wx2k6m2uid.onion"))
+        self.assertFalse(_t.onion_checksum_ok("raborfe3xoj3fkbm5tojqnn3a7ikjahw3irjgpx6bej72ph5jlyzryd.onion"))
+        self.assertTrue(_t.onion_checksum_ok("nytimesn7cgmftshazwhfgzm37qxb44r64ytbb2dj3x62d2lljsciiyd.onion"))
+
+    def test_pasted_mistyped_onion_is_refused_with_plain_words(self):
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        try:
+            with self.assertRaises(ValueError) as cm:
+                c.set_onion_address("BBC News", "http://dwnewsvdyyiamwnp46jrov7e5rtzvaap73pnv3gowvtvo4wx2k6m2uid.onion")
+            self.assertIn("mistyped", str(cm.exception))
+            c.set_onion_address("BBC News", "nytimesn7cgmftshazwhfgzm37qxb44r64ytbb2dj3x62d2lljsciiyd.onion")
+        finally:
             c.close()

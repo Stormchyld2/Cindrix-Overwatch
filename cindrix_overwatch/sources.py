@@ -198,6 +198,8 @@ ONION_OUTLETS = [
     ("Central Intelligence Agency (CIA)", "https://www.cia.gov/", "news"),
     ("Current Time TV", "https://www.currenttime.tv/", "news"),
     ("Radio Free Asia", "https://www.rfa.org/english/", "news"),
+    ("The New York Times", "https://www.nytimes.com/", "news"),
+    ("Distributed Denial of Secrets", "https://ddosecrets.com/", "news"),
 ]
 
 # Left out because they are not valid onion addresses (a current one is exactly 56 characters before .onion; these were
@@ -212,5 +214,7 @@ SUPPLIED_ONIONS = {
     "The Intercept": "https://27m3p2uv7igmj6kvd4ql3cct5h3sdwrsajovkkndeufumzyfhlfev4qd.onion",
     "ProPublica": "https://p53lf57qovyuvwsc6xnrppyply3vtqm7l6pcobkmyqsiofyeznfu5uqd.onion",
     "Radio Free Europe / Radio Liberty": "https://rferlo2zxgv23tct66v45s5mecftol5vod3hf4rqbipfp46fqu2q56ad.onion",
+    "The New York Times": "https://nytimesn7cgmftshazwhfgzm37qxb44r64ytbb2dj3x62d2lljsciiyd.onion",
+    "Distributed Denial of Secrets": "https://ddosxlvzzow7scc7egy75gpke54hgbg2frahxzaw6qq5osnzm7wistid.onion",
     "Current Time TV": "https://currtv242aqatxhyqfyh3mtq2ubzxz7crvj7aon3zccrnwatc5gugvqd.onion",
 }

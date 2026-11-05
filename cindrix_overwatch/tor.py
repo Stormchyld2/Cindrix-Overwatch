@@ -26,6 +26,17 @@ import zlib
 from urllib.parse import urljoin, urlparse
 
 ONION_RE = re.compile(r"^[a-z2-7]{56}\.onion$")
+
+
+def onion_checksum_ok(host):
+    """True when a v3 onion address carries a correct built-in checksum (a mistyped one almost never does)."""
+    import base64
+    import hashlib
+    h = (host or "").lower().replace(".onion", "")
+    if not re.fullmatch(r"[a-z2-7]{56}", h):
+        return False
+    raw = base64.b32decode(h.upper())
+    return raw[34] == 3 and hashlib.sha3_256(b".onion checksum" + raw[:32] + b"\x03").digest()[:2] == raw[32:34]
 BUNDLED_PORT = 9250
 UA = "Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0"
 REPLIES = {1: "general failure", 2: "not allowed", 3: "network unreachable", 4: "host unreachable",
