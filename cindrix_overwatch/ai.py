@@ -232,8 +232,8 @@ def clean_points(text, allowed, limit=5):
         ln = re.sub(r"\[(\d{1,3})\]", lambda m: m.group(0) if int(m.group(1)) in allowed else "", ln)
         ln = re.sub(r"\s{2,}", " ", ln).strip()
         key = re.sub(r"[^a-z0-9]+", " ", ln.lower())
-        if not ln or key in seen:
-            continue
+        if not ln or key in seen or len(re.sub(r"\[\d{1,3}\]|[^A-Za-z ]", "", ln).split()) < 3:
+            continue                                  # empty, repeated, or just a string of numbers
         seen.add(key)
         out.append("- " + ln)
         if len(out) >= limit:

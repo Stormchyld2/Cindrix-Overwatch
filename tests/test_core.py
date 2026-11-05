@@ -658,8 +658,12 @@ class LocalAi(unittest.TestCase):
         self.assertTrue(any("Home states: WV, TN" in q["messages"][-1]["content"] for q in srv.asked))
 
     def test_clean_points_dedupes_and_limits(self):
-        pts = ai.clean_points("FORCE MOVEMENTS\n- A thing [1].\n- A thing [1].\n* Other [2][7].\n- c\n- d\n- e\n- f", {1, 2}, limit=4)
-        self.assertEqual(pts, ["- A thing [1].", "- Other [2].", "- c", "- d"])
+        text = ("FORCE MOVEMENTS\n- A thing happened here [1].\n- A thing happened here [1].\n* Other thing happened [2][7].\n"
+                "- Third thing happened now\n- Fourth thing happened now\n- Fifth thing happened now\n- Sixth thing happened now")
+        pts = ai.clean_points(text, {1, 2}, limit=4)
+        self.assertEqual(pts[:2], ["- A thing happened here [1].", "- Other thing happened [2]."])
+        self.assertEqual(len(pts), 4)
+        self.assertEqual(ai.clean_points("- The carrier deployed [1].\n- [1][3]", {1, 3}), ["- The carrier deployed [1]."])
 
     def test_empty_store_refused_and_empty_parts_say_so(self):
         c, srv = self.make_controller("- ok [1].")
