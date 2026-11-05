@@ -552,6 +552,7 @@ class App:
         self.ai_brief_btn = self.btn(bar, "Write the brief with AI", self._write_ai_brief)
         self.ai_brief_btn.pack(side="left", padx=8)
         self.brief_note = self.label(bar, "", self.f_small, theme.MUTED)
+        self.brief_note.configure(wraplength=1000, justify="left")
         self.brief_note.pack(side="left", padx=10)
         self.brief_text = tk.Text(p, bg=theme.PANEL, fg=theme.BONE, font=self.f_body, relief="flat", wrap="word",
                                   padx=16, pady=12, insertbackground=theme.BONE)

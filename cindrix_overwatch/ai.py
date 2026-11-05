@@ -12,6 +12,7 @@ import re
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -171,6 +172,7 @@ class AiHost:
         self.threads = threads or max(2, min(8, (os.cpu_count() or 4) // 2))
         self.port, self.proc = port or free_port(), None
         self.external = port is not None            # a server somebody else started (used by the tests)
+        self.log_path = os.path.join(tempfile.gettempdir(), f"overwatch-llama-{self.port}.log")
 
     def start(self):
         if self.external:
@@ -178,8 +180,21 @@ class AiHost:
         args = [self.engine, "-m", self.model, "--host", "127.0.0.1", "--port", str(self.port), "-c", str(self.ctx),
                 "-t", str(self.threads), "--jinja"]
         flags = 0x08000000 if sys.platform == "win32" else 0
-        self.proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        try:
+            log = open(self.log_path, "wb")
+        except OSError:
+            log = subprocess.DEVNULL
+        self.proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                                      cwd=os.path.dirname(self.engine), creationflags=flags)
+
+    def log_tail(self, n=5):
+        """The last few lines the engine printed, so a failure can be understood."""
+        try:
+            with open(self.log_path, "rb") as f:
+                lines = [ln.strip() for ln in f.read().decode("utf-8", "replace").splitlines() if ln.strip()]
+        except OSError:
+            return ""
+        return (" Engine said: " + " | ".join(l[:160] for l in lines[-n:])) if lines else ""
 
     def healthy(self):
         try:
@@ -194,7 +209,9 @@ class AiHost:
             if self.healthy():
                 return
             if self.proc is not None and self.proc.poll() is not None:
-                raise RuntimeError("The model engine stopped while loading (is there enough free memory?).")
+                raise RuntimeError("The model engine stopped while loading (is there enough free memory?). "
+                                   f"Engine: {self.engine}  Model: {os.path.basename(self.model)}  Exit code: {self.proc.returncode}."
+                                   + self.log_tail())
             if say:
                 say(f"Loading the model ({int(time.time() - t0)} s)")
             time.sleep(1.5)
