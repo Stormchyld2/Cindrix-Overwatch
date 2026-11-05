@@ -291,3 +291,33 @@ def open_tor_browser(url="", root=""):
     if not exe:
         return False
     return tor.start_browser(exe, url)
+
+
+def build_ai_tab(app, p):
+    """Settings > AI: which Cindrix folder holds the models, and whether the brief may use them."""
+    from tkinter import filedialog
+    c = app.c
+    p.columnconfigure(0, weight=1)
+    card = tk.Frame(p, bg=theme.PANEL)
+    card.grid(row=0, column=0, sticky="ew", padx=14, pady=14)
+    app.label(card, "Local AI (optional)", app.f_big, bg=theme.PANEL).pack(fill="x", padx=16, pady=(14, 2))
+    tk.Label(card, justify="left", anchor="w", wraplength=980, font=app.f_small, fg=theme.MUTED, bg=theme.PANEL,
+             text=("Uses the same Qwen model and engine as Cindrix Ops, running on this PC only. Nothing is sent over the internet. "
+                   "It writes the daily brief from the headlines Overwatch already holds and shows the numbered headlines it used, "
+                   "so every claim can be checked. A small model can miss things or word them badly. Off by default.")
+             ).pack(fill="x", padx=16, pady=(0, 8))
+    app.label(card, "Cindrix folder (the one with models and engines inside), or the drive that holds it", app.f_bold,
+              bg=theme.PANEL).pack(fill="x", padx=16, pady=(6, 2))
+    row = tk.Frame(card, bg=theme.PANEL)
+    row.pack(fill="x", padx=16, pady=4)
+    app.ai_root_var = tk.StringVar(value=c.settings.get("ai_root", ""))
+    _entry(row, app.ai_root_var, 80).pack(side="left", ipady=5)
+    app.btn(row, "Browse...", lambda: app.ai_root_var.set(filedialog.askdirectory(parent=app.root) or app.ai_root_var.get()),
+            small=True).pack(side="left", padx=8)
+    app.btn(row, "Save", app._save_ai, primary=True, small=True).pack(side="left")
+    app.ai_enabled_var = tk.BooleanVar(value=bool(c.settings.get("ai_enabled", False)))
+    tk.Checkbutton(card, text="Let the brief use the AI", variable=app.ai_enabled_var, command=app._save_ai, bg=theme.PANEL,
+                   fg=theme.BONE, selectcolor=theme.CHARCOAL, activebackground=theme.PANEL, activeforeground=theme.BONE
+                   ).pack(anchor="w", padx=16, pady=(6, 2))
+    app.ai_status = tk.Label(card, justify="left", anchor="w", wraplength=980, font=app.f_body, fg=theme.BONE, bg=theme.PANEL)
+    app.ai_status.pack(fill="x", padx=16, pady=(6, 14))

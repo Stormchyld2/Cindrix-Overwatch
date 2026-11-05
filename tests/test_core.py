@@ -564,3 +564,113 @@ class EarlyWarningFeedsPresent(unittest.TestCase):
                      "yonhap", "rfa", "rferl", "voa", "cbs", "france24", "tass", "nhc", "usgs-sig", "climate"):
             self.assertIn(need, ids)
         self.assertEqual(len(ids), len(sources.BUILTIN))
+
+
+import http.server
+import json as _json
+
+from cindrix_overwatch import ai
+
+
+class FakeLlama:
+    """A stand-in for llama-server: /health and /v1/chat/completions, answering with canned text."""
+
+    def __init__(self, reply):
+        outer = self
+        outer.asked = []
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"status":"ok"}')
+
+            def do_POST(self):
+                n = int(self.headers.get("Content-Length", 0))
+                outer.asked.append(_json.loads(self.rfile.read(n)))
+                body = _json.dumps({"choices": [{"message": {"content": reply}}]}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body)
+        self.srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+        self.port = self.srv.server_address[1]
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.srv.shutdown()
+
+
+class LocalAi(unittest.TestCase):
+    def test_model_names_and_choice(self):
+        self.assertEqual(ai.size_of("Qwen3.5-4B-Q4_K_M.gguf"), "4b")
+        self.assertIsNone(ai.size_of("Hy-MT2-1.8B-Q4_K_M.gguf"))
+        self.assertTrue(ai.is_translation_model("Hy-MT2-1.8B-Q4_K_M.gguf"))
+        self.assertFalse(ai.is_translation_model("translategemma-4b-it.gguf"))
+        files = ["Qwen3.5-2B-Q4_K_M.gguf", "Qwen3.5-4B-Q4_K_M.gguf", "Hy-MT2-1.8B-Q4_K_M.gguf"]
+        self.assertEqual(ai.pick_chat_model(files, 8), "Qwen3.5-2B-Q4_K_M.gguf")
+        self.assertEqual(ai.pick_chat_model(files, 16), "Qwen3.5-4B-Q4_K_M.gguf")
+        self.assertIsNone(ai.pick_chat_model(["Hy-MT2-1.8B-Q4_K_M.gguf"], 16))
+
+    def test_inventory_finds_the_folder(self):
+        import os
+        d = tempfile.mkdtemp()
+        os.makedirs(os.path.join(d, "Cindrix", "models"))
+        os.makedirs(os.path.join(d, "Cindrix", "engines"))
+        for f in ("Qwen3.5-2B-Q4_K_M.gguf", "Hy-MT2-1.8B-Q4_K_M.gguf"):
+            open(os.path.join(d, "Cindrix", "models", f), "wb").close()
+        info = ai.inventory(d, ram_gb=8)
+        self.assertEqual(info["chat"], "Qwen3.5-2B-Q4_K_M.gguf")
+        self.assertEqual(info["mt"], "Hy-MT2-1.8B-Q4_K_M.gguf")
+        self.assertIn("engine", info["message"])
+        self.assertEqual(ai.inventory("")["message"], "No Cindrix folder chosen yet.")
+
+    def make_controller(self, reply):
+        srv = FakeLlama(reply)
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW,
+                              )
+        c.ai.host_factory = lambda: ai.AiHost("", "", port=srv.port)
+        return c, srv
+
+    def test_brief_is_labelled_and_cites_sources(self):
+        c, srv = self.make_controller("BOTTOM LINE\n- Russia reported a mobilization [1].\n- Quiet elsewhere.")
+        try:
+            items = [Item("x", "Wire A", "conflict", "wire", "Russia orders mobilization of reservists near border",
+                          ts=S.NOW - 600, uid="a1", url="https://example.com/a"),
+                     Item("y", "Wire B", "military", "official", "Navy ship leaves port for exercise", ts=S.NOW - 700, uid="b1")]
+            c.store.upsert(items, S.NOW)
+            text = c.ai.write_brief()
+        finally:
+            srv.close()
+            c.close()
+        self.assertIn("AI-written summary", text)
+        self.assertIn("Sources it cited:", text)
+        self.assertIn("[1] Russia orders mobilization", text)
+        sent = srv.asked[0]
+        self.assertFalse(sent["chat_template_kwargs"]["enable_thinking"])
+        user = sent["messages"][-1]["content"]
+        self.assertIn("force-movement", user)
+        self.assertIn("Home states: WV, TN", user)
+
+    def test_uncited_brief_is_flagged_and_empty_store_refused(self):
+        c, srv = self.make_controller("Everything looks calm.")
+        try:
+            with self.assertRaises(RuntimeError):
+                c.ai.write_brief()
+            c.store.upsert([Item("x", "A", "news", "wire", "Something happened today in Poland", ts=S.NOW - 60, uid="z")], S.NOW)
+            text = c.ai.write_brief()
+        finally:
+            srv.close()
+            c.close()
+        self.assertIn("no source numbers", text)
+
+    def test_thinking_tags_removed(self):
+        srv = FakeLlama("<think>hmm</think>Answer [1]")
+        try:
+            out = ai.AiHost("", "", port=srv.port).chat("s", "u")
+        finally:
+            srv.close()
+        self.assertEqual(out, "Answer [1]")

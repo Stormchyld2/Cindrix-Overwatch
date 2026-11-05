@@ -14,13 +14,13 @@ import urllib.request
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor
 
-from . import discover, feeds, geo, scoring, sources, tor
+from . import ai, discover, feeds, geo, scoring, sources, tor
 from .store import Store
 
 MAX_BYTES = 5_000_000
 KEEP_DAYS = 30
 DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15,
-                    "onion_addresses": {}, "my_outlets": []}
+                    "onion_addresses": {}, "my_outlets": [], "ai_root": "", "ai_enabled": False}
 
 
 ACCEPT = "application/rss+xml, application/atom+xml, application/xml, application/json, text/xml, */*;q=0.8"
@@ -63,6 +63,7 @@ class Controller:
     def __init__(self, root, fetch=None, now=time.time, tor_link=None):
         os.makedirs(root, exist_ok=True)
         self.tor = tor_link or tor.TorLink(root)
+        self.ai = ai.AiService(self)
         self.root, self.now = root, now
         self.fetch = fetch or self._routed_fetch
         self.settings_path = os.path.join(root, "settings.json")
@@ -383,7 +384,8 @@ class Controller:
 
     def close(self):
         self.store.close()
-        try:
-            self.tor.close()
-        except Exception:
-            pass
+        for closer in (self.tor.close, self.ai.stop):
+            try:
+                closer()
+            except Exception:
+                pass

@@ -1,0 +1,21 @@
+name: ai-check
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "cindrix_overwatch/ai.py"
+      - "tools/ai_ci.py"
+      - ".github/workflows/ai-check.yml"
+jobs:
+  engine:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Real engine, real models: translation, and a real brief
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python tools/ai_ci.py

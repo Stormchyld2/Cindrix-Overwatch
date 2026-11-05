@@ -187,6 +187,7 @@ class App:
         elif key == "settings":
             self._render_sources()
             self._render_tor()
+            self._render_ai()
 
     # ----- war room -----
     def _build_war(self, p):
@@ -465,6 +466,9 @@ class App:
         bar.grid(row=0, column=0, sticky="ew", padx=14, pady=10)
         self.btn(bar, "Copy brief", self._copy_brief, primary=True).pack(side="left")
         self.btn(bar, "Save brief to a file", self._save_brief).pack(side="left", padx=8)
+        self.ai_text = ""
+        self.ai_brief_btn = self.btn(bar, "Write the brief with AI", self._write_ai_brief)
+        self.ai_brief_btn.pack(side="left", padx=8)
         self.brief_note = self.label(bar, "", self.f_small, theme.MUTED)
         self.brief_note.pack(side="left", padx=10)
         self.brief_text = tk.Text(p, bg=theme.PANEL, fg=theme.BONE, font=self.f_body, relief="flat", wrap="word",
@@ -474,18 +478,23 @@ class App:
     def _render_brief(self):
         self.brief_text.configure(state="normal")
         self.brief_text.delete("1.0", "end")
-        self.brief_text.insert("1.0", self.c.brief())
+        self.brief_text.insert("1.0", self._full_brief())
         self.brief_text.configure(state="disabled")
+        self._render_brief_buttons()
+
+    def _full_brief(self):
+        plain = self.c.brief()
+        return (self.ai_text + "\n\n" + "=" * 60 + "\n\n" + plain) if self.ai_text else plain
 
     def _copy_brief(self):
         self.root.clipboard_clear()
-        self.root.clipboard_append(self.c.brief())
+        self.root.clipboard_append(self._full_brief())
         self.brief_note.configure(text="Copied.")
 
     def _save_brief(self):
         path = os.path.join(self.c.root, time.strftime("brief-%Y-%m-%d.txt", time.localtime(self.c.now())))
         with open(path, "w", encoding="utf-8") as f:
-            f.write(self.c.brief())
+            f.write(self._full_brief())
         self.brief_note.configure(text="Saved to " + path)
 
     def _build_sources(self, p):
@@ -531,6 +540,45 @@ class App:
                 row["group"], status, h["count"] if h and h["ok"] else "", ago(h["last_ok"], now) if h and h["last_ok"] else "",
                 TRUST_LABELS[row["trust"]]))
         self.src_note.configure(text=f"{len(disabled)} built-in source(s) turned off." if disabled else "")
+
+    def _render_ai(self):
+        st = self.c.ai.status()
+        lines = [st["message"]]
+        if st["base"]:
+            lines.append(f"Folder: {st['base']}")
+            lines.append(f"Chat model: {st['chat'] or 'none found'}   Translation model: {st['mt'] or 'none found'}")
+            lines.append("The model is running now." if st["running"] else "The model starts when you ask for an AI brief and stops when Overwatch closes.")
+        self.ai_status.configure(text="\n".join(lines))
+
+    def _save_ai(self):
+        self.c.settings["ai_root"] = self.ai_root_var.get().strip()
+        self.c.settings["ai_enabled"] = bool(self.ai_enabled_var.get())
+        self.c.save_settings()
+        self._render_ai()
+        self._render_brief_buttons()
+
+    def _render_brief_buttons(self):
+        ok = self.c.settings.get("ai_enabled") and self.c.ai.status()["message"] == "Ready to use."
+        self.ai_brief_btn.configure(state="normal" if ok else "disabled")
+        if not ok:
+            self.brief_note.configure(text="AI brief is off. Turn it on in Settings > AI.", fg=theme.MUTED)
+
+    def _write_ai_brief(self):
+        self.ai_brief_btn.configure(state="disabled")
+        self.brief_note.configure(text="Starting...", fg=theme.MUTED)
+
+        def say(m):
+            self.root.after(0, lambda: self.brief_note.configure(text=m))
+
+        def done(kind, val):
+            self.ai_brief_btn.configure(state="normal")
+            if kind == "err":
+                self.brief_note.configure(text=val, fg=theme.RED)
+                return
+            self.ai_text = val
+            self.brief_note.configure(text="Done. The plain brief is below the AI one.", fg=theme.GREEN)
+            self._render_brief()
+        ui_extra.Worker(self.root, lambda: self.c.ai.write_brief(say), done)
 
     def _tor_poll(self):
         if self.page == "settings":
@@ -693,10 +741,12 @@ class App:
         p.rowconfigure(0, weight=1)
         self.settings_tabs = nb = ttk.Notebook(p)
         nb.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
-        general, feeds_tab, tor_tab = (tk.Frame(nb, bg=theme.CHARCOAL) for _ in range(3))
+        general, feeds_tab, tor_tab, ai_tab = (tk.Frame(nb, bg=theme.CHARCOAL) for _ in range(4))
         nb.add(general, text="  General  ")
         nb.add(feeds_tab, text="  Feeds  ")
         nb.add(tor_tab, text="  Tor  ")
+        nb.add(ai_tab, text="  AI  ")
+        ui_extra.build_ai_tab(self, ai_tab)
         self._build_sources(feeds_tab)
         ui_extra.build_tor_tab(self, tor_tab)
         self.root.after(1500, self._tor_poll)

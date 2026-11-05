@@ -84,6 +84,11 @@ def main():
         assert app.tor_status.cget("text")
         app.settings_tabs.select(2)
         pump(app, 0.1)
+        app.settings_tabs.select(3)
+        pump(app, 0.1)
+        assert "Cindrix folder" in app.ai_status.cget("text") or "No Cindrix folder" in app.ai_status.cget("text")
+        app.show_page("brief")
+        assert str(app.ai_brief_btn.cget("state")) == "disabled"
 
         # settings: bad and good home states, custom feed
         app.home_var.set("ZZ")
