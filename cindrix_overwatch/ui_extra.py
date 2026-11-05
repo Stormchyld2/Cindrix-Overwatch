@@ -315,6 +315,17 @@ def build_ai_tab(app, p):
     app.btn(row, "Browse...", lambda: app.ai_root_var.set(filedialog.askdirectory(parent=app.root) or app.ai_root_var.get()),
             small=True).pack(side="left", padx=8)
     app.btn(row, "Save", app._save_ai, primary=True, small=True).pack(side="left")
+    app.label(card, "Engine (llama-server.exe). Leave empty to find it automatically", app.f_bold, bg=theme.PANEL
+              ).pack(fill="x", padx=16, pady=(8, 2))
+    row_e = tk.Frame(card, bg=theme.PANEL)
+    row_e.pack(fill="x", padx=16, pady=4)
+    app.ai_engine_var = tk.StringVar(value=c.settings.get("ai_engine", ""))
+    _entry(row_e, app.ai_engine_var, 80).pack(side="left", ipady=5)
+    app.btn(row_e, "Browse...", lambda: app.ai_engine_var.set(
+        filedialog.askopenfilename(parent=app.root, title="Pick llama-server.exe",
+                                   filetypes=[("llama-server", "llama-server*"), ("All files", "*.*")]) or app.ai_engine_var.get()),
+            small=True).pack(side="left", padx=8)
+    app.btn(row_e, "Save", app._save_ai, primary=True, small=True).pack(side="left")
     app.ai_enabled_var = tk.BooleanVar(value=bool(c.settings.get("ai_enabled", False)))
     tk.Checkbutton(card, text="Let the brief use the AI", variable=app.ai_enabled_var, command=app._save_ai, bg=theme.PANEL,
                    fg=theme.BONE, selectcolor=theme.CHARCOAL, activebackground=theme.PANEL, activeforeground=theme.BONE

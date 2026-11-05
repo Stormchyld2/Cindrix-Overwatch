@@ -85,7 +85,33 @@ def locate(root):
     return ""
 
 
-def inventory(root, ram_gb=None):
+def find_engine(root, base, override=""):
+    """Looks for llama-server the way Cindrix Ops does (an engines folder on the drive or next to the program), and a
+    few levels down inside it, so an unzipped llama.cpp folder is found too."""
+    exe = "llama-server.exe" if sys.platform == "win32" else "llama-server"
+    if override and os.path.isfile(override):
+        return override
+    spots = []
+    for b in (base, root, os.path.dirname(base.rstrip("\\/")) if base else ""):
+        if b:
+            spots.append(os.path.join(b, "engines"))
+    seen = set()
+    for d in spots:
+        if d in seen or not os.path.isdir(d):
+            continue
+        seen.add(d)
+        direct = os.path.join(d, exe)
+        if os.path.isfile(direct):
+            return direct
+        for cur, dirs, files in os.walk(d):
+            if cur[len(d):].count(os.sep) >= 3:
+                dirs[:] = []
+            if exe in files:
+                return os.path.join(cur, exe)
+    return ""
+
+
+def inventory(root, ram_gb=None, engine_override=""):
     """What is available under the chosen folder, in words and paths."""
     base = locate(root) if root else ""
     info = {"base": base, "engine": "", "chat": "", "mt": "", "files": [], "message": ""}
@@ -95,8 +121,7 @@ def inventory(root, ram_gb=None):
     if not base:
         info["message"] = "That folder has no models folder in it. Pick the Cindrix folder (or the drive that holds it)."
         return info
-    eng = os.path.join(base, "engines", "llama-server.exe" if sys.platform == "win32" else "llama-server")
-    info["engine"] = eng if os.path.isfile(eng) else ""
+    info["engine"] = find_engine(root, base, engine_override)
     try:
         files = sorted(f for f in os.listdir(os.path.join(base, "models")) if f.lower().endswith(".gguf"))
     except OSError:
@@ -105,7 +130,9 @@ def inventory(root, ram_gb=None):
     info["chat"] = pick_chat_model(files, ram_gb if ram_gb is not None else total_ram_gb()) or ""
     info["mt"] = next((f for f in files if is_translation_model(f)), "")
     if not info["engine"]:
-        info["message"] = "The model engine (llama-server) was not found in the engines folder."
+        info["message"] = ("The model engine (llama-server) was not found in an engines folder inside " + base +
+                           ". Use the Engine box below to pick llama-server.exe (it is in the engines folder next to "
+                           "the Cindrix Ops program).")
     elif not info["chat"]:
         info["message"] = "No Qwen model file (2B, 4B or 9B .gguf) found in the models folder."
     else:
@@ -391,7 +418,7 @@ class AiService:
         return self.c.settings.get("ai_root", "")
 
     def status(self):
-        info = inventory(self.root())
+        info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""))
         info["enabled"] = bool(self.c.settings.get("ai_enabled", False))
         info["running"] = bool(self.host and self.host.healthy())
         return info
@@ -403,7 +430,7 @@ class AiService:
             if self.host_factory:
                 self.host = self.host_factory()
             else:
-                info = inventory(self.root())
+                info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""))
                 if info["message"] != "Ready to use.":
                     raise RuntimeError(info["message"])
                 ram = total_ram_gb()
@@ -449,12 +476,13 @@ class AiService:
     def translator_ready(self):
         if self.mt_factory:
             return True
-        return bool(inventory(self.root())["mt"]) and bool(inventory(self.root())["engine"])
+        info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""))
+        return bool(info["mt"]) and bool(info["engine"])
 
     def _mt_host(self):
         if self.mt_factory:
             return self.mt_factory()
-        info = inventory(self.root())
+        info = inventory(self.root(), engine_override=self.c.settings.get("ai_engine", ""))
         if not info["mt"]:
             raise RuntimeError("No translation model in the models folder yet (a file with MT in its name).")
         if not info["engine"]:

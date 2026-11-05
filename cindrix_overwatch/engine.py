@@ -21,7 +21,7 @@ MAX_BYTES = 5_000_000
 KEEP_DAYS = 30
 DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15,
                     "onion_addresses": {}, "my_outlets": [], "ai_root": "", "ai_enabled": False,
-                    "auto_translate": True, "ai_focus": True, "ai_instructions": ""}
+                    "ai_engine": "", "auto_translate": True, "ai_focus": True, "ai_instructions": ""}
 
 
 ACCEPT = "application/rss+xml, application/atom+xml, application/xml, application/json, text/xml, */*;q=0.8"

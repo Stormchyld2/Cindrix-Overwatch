@@ -628,6 +628,23 @@ class LocalAi(unittest.TestCase):
         self.assertIn("engine", info["message"])
         self.assertEqual(ai.inventory("")["message"], "No Cindrix folder chosen yet.")
 
+    def test_engine_found_in_nested_or_parent_engines_folder(self):
+        import os
+        exe = "llama-server.exe" if __import__("sys").platform == "win32" else "llama-server"
+        d = tempfile.mkdtemp()
+        os.makedirs(os.path.join(d, "models"))
+        open(os.path.join(d, "models", "Qwen3.5-2B-Q4_K_M.gguf"), "wb").close()
+        self.assertEqual(ai.inventory(d, ram_gb=8)["engine"], "")
+        nested = os.path.join(d, "engines", "llama-b123-bin-win-cpu-x64")
+        os.makedirs(nested)
+        open(os.path.join(nested, exe), "wb").close()
+        info = ai.inventory(d, ram_gb=8)
+        self.assertTrue(info["engine"].endswith(exe))
+        self.assertEqual(info["message"], "Ready to use.")
+        other = os.path.join(tempfile.mkdtemp(), exe)
+        open(other, "wb").close()
+        self.assertEqual(ai.inventory(d, ram_gb=8, engine_override=other)["engine"], other)
+
     def make_controller(self, reply):
         srv = FakeLlama(reply)
         c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW,
