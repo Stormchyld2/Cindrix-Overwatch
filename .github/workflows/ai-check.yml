@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Real engine, real models: translation, and a real brief
+      - name: "Real engine, real models: translation, and a real brief"
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python tools/ai_ci.py
