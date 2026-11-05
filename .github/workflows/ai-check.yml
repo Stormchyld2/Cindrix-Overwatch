@@ -18,4 +18,5 @@ jobs:
       - name: "Real engine, real models: translation, and a real brief"
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          PYTHONIOENCODING: utf-8
         run: python tools/ai_ci.py
