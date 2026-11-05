@@ -657,6 +657,15 @@ class LocalAi(unittest.TestCase):
         open(os.path.join(loose, "Qwen3.5-4B-Q4_K_M.gguf"), "wb").close()
         self.assertEqual(ai.inventory(loose, ram_gb=16)["chat"], "Qwen3.5-4B-Q4_K_M.gguf")
 
+    def test_drive_root_keeps_its_slash(self):
+        self.assertEqual(ai.clean_root("D:\\"), "D:\\")
+        self.assertEqual(ai.clean_root("D:/"), "D:\\")
+        self.assertEqual(ai.clean_root("D:"), "D:\\")
+        self.assertEqual(ai.clean_root("D:\\models\\"), "D:\\models")
+        self.assertEqual(ai.clean_root("/mnt/x/"), "/mnt/x")
+        self.assertEqual(ai.clean_root("/"), "/")
+        self.assertEqual(ai.clean_root(""), "")
+
     def make_controller(self, reply):
         srv = FakeLlama(reply)
         c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW,

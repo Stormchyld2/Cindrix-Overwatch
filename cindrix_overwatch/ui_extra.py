@@ -287,6 +287,9 @@ def build_tor_tab(app, p):
 
 
 def open_tor_browser(url="", root=""):
+    from . import torbrowser
+    if torbrowser.firefox_path(root) and torbrowser.problem(root):
+        return False                                   # our own copy is damaged; the window explains and offers a reinstall
     exe = tor.find_tor_browser(root)
     if not exe:
         return False

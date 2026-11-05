@@ -788,7 +788,8 @@ class App:
 
     def _open_tor_browser(self, url=""):
         if not ui_extra.open_tor_browser(url, self.c.root):
-            self.tor_note.configure(text="Tor Browser is not installed yet. Press Install Tor Browser (one click).",
+            bad = torbrowser.problem(self.c.root) if torbrowser.firefox_path(self.c.root) else ""
+            self.tor_note.configure(text=bad or "Tor Browser is not installed yet. Press Install Tor Browser (one click).",
                                     fg=theme.AMBER)
 
     def _install_tor_browser(self):

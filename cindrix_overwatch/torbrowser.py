@@ -7,8 +7,10 @@ it from the Tor Project, verifies it, installs it quietly into its own folder an
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 
 BASE = "https://dist.torproject.org/torbrowser/"
@@ -29,6 +31,29 @@ def firefox_path(root):
         p = os.path.join(install_dir(root), *rel)
         if os.path.isfile(p):
             return p
+    return ""
+
+
+def _dir_size(path):
+    total = 0
+    for base, _, files in os.walk(path):
+        for n in files:
+            try:
+                total += os.path.getsize(os.path.join(base, n))
+            except OSError:
+                pass
+    return total
+
+
+def problem(root):
+    """'' when the install looks complete, else a plain sentence saying what is wrong with it."""
+    ff = firefox_path(root)
+    if not ff:
+        return "Tor Browser is not installed."
+    xul = os.path.join(os.path.dirname(ff), "xul.dll")
+    if sys.platform == "win32" and (not os.path.isfile(xul) or os.path.getsize(xul) < 20_000_000):
+        return ("The Tor Browser files on this PC are damaged or incomplete (an install was cut short, or a virus "
+                "checker changed a file). Press Install Tor Browser again to put a fresh copy in.")
     return ""
 
 
@@ -72,30 +97,41 @@ def install(root, say=None, get=_get, run=subprocess.run):
     if hashlib.sha256(data).hexdigest() != want:
         raise RuntimeError("The download did not match the Tor Project checksum, so it was thrown away.")
     dest = install_dir(root)
+    if os.path.isdir(dest):                        # a half-written earlier install is removed first
+        shutil.rmtree(dest, ignore_errors=True)
     os.makedirs(dest, exist_ok=True)
     exe = os.path.join(root, name)
     with open(exe, "wb") as f:
         f.write(data)
-    say("Installing quietly into the Overwatch folder")
+    say("Installing quietly into the Overwatch folder (this takes a minute or two; do not close Overwatch)")
     cmd = [exe, "/S", "/D=" + dest]            # tested on a Windows runner: unpacks to <dest>\\Browser\\firefox.exe
-    say("Installer: " + name)
-    import time
     proc = subprocess.Popen(cmd) if run is subprocess.run else None
     if proc is None:
         run(cmd)
-    deadline = time.monotonic() + 420
-    while time.monotonic() < deadline and not firefox_path(root):
-        if proc is not None and proc.poll() not in (None, 0) and not firefox_path(root):
+    # Wait for the installer to finish by itself. Killing it early leaves files half written (a broken xul.dll).
+    # Only if it lingers after the files stopped growing for a while is it ended.
+    deadline = time.monotonic() + 600
+    last, still = -1, 0
+    while time.monotonic() < deadline:
+        if proc is None or proc.poll() is not None:
+            break
+        size = _dir_size(dest)
+        still = still + 2 if size == last and firefox_path(root) else 0
+        last = size
+        if still >= 30:
             break
         time.sleep(2)
-    time.sleep(3)                                  # let the last files finish writing
     if proc is not None and proc.poll() is None:
-        proc.terminate()                           # some installers linger after the files are in place
+        proc.terminate()
+    time.sleep(2)
     try:
         os.remove(exe)
     except OSError:
         pass
     p = firefox_path(root)
+    bad = problem(root) if p else ""
+    if bad:
+        raise RuntimeError(bad + " If it happens again, add the Overwatch folder to your virus checker's exclusions.")
     if not p:
         seen = []
         for base, dirs, files in os.walk(root):
@@ -110,7 +146,7 @@ def install(root, say=None, get=_get, run=subprocess.run):
 
 def launch(root, url=""):
     p = firefox_path(root)
-    if not p:
+    if not p or problem(root):
         return False
     from . import tor
     return tor.start_browser(p, url)

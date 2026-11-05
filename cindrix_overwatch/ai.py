@@ -78,12 +78,21 @@ def pick_chat_model(files, ram_gb):
     return (ok or sized)[-1][0] if ok else sized[0][0]
 
 
+def clean_root(root):
+    """Trailing slashes removed, but a bare drive ('D:\\') keeps its slash. 'D:' alone means 'the current folder on D:',
+    and joining 'D:' with 'models' gives 'D:models', a path that does not exist."""
+    r = (root or "").strip().rstrip("\\/")
+    if re.fullmatch(r"[A-Za-z]:", r):
+        return r + "\\"
+    return r or ((root or "").strip()[:1] if (root or "").strip()[:1] in ("/", "\\") else "")
+
+
 def locate(root):
     """Finds the Cindrix program folder. Accepts the folder itself, a folder that holds one called Cindrix, a drive
     with a models folder, or the models folder itself (a folder named models, or one with .gguf files directly in it)."""
     if not root:
         return ""
-    r = root.rstrip("\\/")
+    r = clean_root(root)
     if os.path.basename(r).lower() == "models" and os.path.isdir(r):
         return os.path.dirname(r)
     for base in (r, os.path.join(r, "Cindrix")):
@@ -104,7 +113,7 @@ def find_engine(root, base, override=""):
     if override and os.path.isfile(override):
         return override
     spots = []
-    for b in (base, root, os.path.dirname(base.rstrip("\\/")) if base else ""):
+    for b in (base, clean_root(root), os.path.dirname(clean_root(base)) if base else ""):
         if b:
             spots.append(os.path.join(b, "engines"))
     seen = set()
@@ -127,7 +136,7 @@ def inventory(root, ram_gb=None, engine_override=""):
     """What is available under the chosen folder, in words and paths."""
     base = locate(root) if root else ""
     mdir = os.path.join(base, "models") if base else ""
-    r0 = (root or "").rstrip("\\/")
+    r0 = clean_root(root)
     if base and not os.path.isdir(mdir) and os.path.isdir(r0):
         mdir = r0                                       # the chosen folder holds the model files directly
     elif base and os.path.basename(r0).lower() == "models":
