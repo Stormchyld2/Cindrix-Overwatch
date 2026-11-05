@@ -635,28 +635,34 @@ class LocalAi(unittest.TestCase):
         c.ai.host_factory = lambda: ai.AiHost("", "", port=srv.port)
         return c, srv
 
-    def test_brief_is_labelled_and_cites_sources(self):
-        c, srv = self.make_controller("BOTTOM LINE\n- Russia reported a mobilization [1].\n- Quiet elsewhere.")
+    def test_brief_is_labelled_and_lists_every_headline(self):
+        c, srv = self.make_controller("# FORCE MOVEMENTS\n- Russia reported a mobilization [1] [9].\n- Russia reported a mobilization [1] [9].\n- Quiet elsewhere.")
         try:
             items = [Item("x", "Wire A", "conflict", "wire", "Russia orders mobilization of reservists near border",
                           ts=S.NOW - 600, uid="a1", url="https://example.com/a"),
-                     Item("y", "Wire B", "military", "official", "Navy ship leaves port for exercise", ts=S.NOW - 700, uid="b1")]
+                     Item("y", "Wire B", "military", "official", "Navy ship leaves port for exercise", ts=S.NOW - 700, uid="b1"),
+                     Item("z", "NWS", "weather", "official", "Winter storm warning for Marion County, West Virginia",
+                          ts=S.NOW - 800, uid="c1")]
+            items[2].states = ["WV"]
             c.store.upsert(items, S.NOW)
             text = c.ai.write_brief()
         finally:
             srv.close()
             c.close()
         self.assertIn("AI-written summary", text)
-        self.assertIn("Sources it cited:", text)
-        self.assertIn("[1] Russia orders mobilization", text)
-        sent = srv.asked[0]
-        self.assertFalse(sent["chat_template_kwargs"]["enable_thinking"])
-        user = sent["messages"][-1]["content"]
-        self.assertIn("force-movement", user)
-        self.assertIn("Home states: WV, TN", user)
+        for part in ("BOTTOM LINE", "FORCE MOVEMENTS", "CONFLICT AND CRISES", "HEALTH, WEATHER AND HAZARDS", "HOME"):
+            self.assertIn(part, text)
+        self.assertIn("Winter storm warning for Marion County", text)          # headlines are listed whatever the model says
+        self.assertNotIn("[9]", text)                                           # a number that is not in the part is removed
+        self.assertTrue(any("force-movement" in q["messages"][-1]["content"] for q in srv.asked))
+        self.assertTrue(any("Home states: WV, TN" in q["messages"][-1]["content"] for q in srv.asked))
 
-    def test_uncited_brief_is_flagged_and_empty_store_refused(self):
-        c, srv = self.make_controller("Everything looks calm.")
+    def test_clean_points_dedupes_and_limits(self):
+        pts = ai.clean_points("FORCE MOVEMENTS\n- A thing [1].\n- A thing [1].\n* Other [2][7].\n- c\n- d\n- e\n- f", {1, 2}, limit=4)
+        self.assertEqual(pts, ["- A thing [1].", "- Other [2].", "- c", "- d"])
+
+    def test_empty_store_refused_and_empty_parts_say_so(self):
+        c, srv = self.make_controller("- ok [1].")
         try:
             with self.assertRaises(RuntimeError):
                 c.ai.write_brief()
@@ -665,7 +671,7 @@ class LocalAi(unittest.TestCase):
         finally:
             srv.close()
             c.close()
-        self.assertIn("no source numbers", text)
+        self.assertIn("Nothing reported.", text)
 
     def test_thinking_tags_removed(self):
         srv = FakeLlama("<think>hmm</think>Answer [1]")

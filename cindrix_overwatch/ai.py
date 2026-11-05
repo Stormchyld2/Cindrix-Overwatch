@@ -182,67 +182,88 @@ class AiHost:
 
 
 SYSTEM = (
-    "You write a short intelligence-style brief for a family that watches world events for early warning. "
-    "Use ONLY the numbered headlines you are given. Cite the headline numbers in square brackets after each claim, like [3] or [3][7]. "
-    "Never add facts, numbers, places or names that are not in the headlines. If the headlines say nothing about a topic, write 'Nothing reported.' "
+    "You summarize numbered news headlines for a family that watches world events for early warning. "
+    "Use ONLY the headlines you are given. After each point, cite the headline numbers in square brackets, like [3] or [3][7]. "
+    "Never add facts, numbers, places or names that are not in the headlines. "
     "Say 'reported' or 'claimed', not 'confirmed'. Items from state media are that government's claims. "
-    "Do not predict. Do not give advice about medicine. Plain words, short sentences.")
+    "Do not predict. Plain words, short sentences. Do not write headings.")
 
-FORMAT = (
-    "Write the brief with exactly these headings, each followed by 1 to 4 short bullet points:\n"
-    "BOTTOM LINE (two sentences: what matters most right now)\n"
-    "HOT SPOTS (regions with the most serious reporting)\n"
-    "FORCE MOVEMENTS (deployments, mobilization, readiness signals)\n"
-    "HOME (anything touching the home states listed)\n"
-    "WATCH NEXT (what to look for in the next day)")
+SECTIONS = (
+    ("FORCE MOVEMENTS", "deployments, mobilization, readiness and exercises"),
+    ("CONFLICT AND CRISES", "fighting, attacks, advisories and unrest"),
+    ("HEALTH, WEATHER AND HAZARDS", "outbreaks, storms, quakes and other hazards"),
+    ("HOME", "anything touching the home states"),
+)
 
 
-def brief_input(controller, max_items=30, hours=24):
-    """Builds the numbered headline list and the prompt. Returns (prompt, items)."""
-    now = controller.now()
+def gather(controller, max_items=36, hours=24):
+    """The numbered headlines, sorted by seriousness, and which section each belongs to."""
     items = scoring.group(controller.all_items(hours))
     rank = {"official": 2, "wire": 1, "outlet": 0}
     items.sort(key=lambda i: (-(i.severity), -(1 if scoring.is_deployment(i) else 0), -i.count, -rank[i.trust], -i.ts))
-    items = [i for i in items if i.kind in ("military", "conflict", "news", "health", "hazard")][:max_items]
-    lines = []
+    items = [i for i in items if i.kind in ("military", "conflict", "news", "health", "hazard", "weather", "space")][:max_items]
+    hs = controller.settings["home_states"]
+    parts = {name: [] for name, _ in SECTIONS}
     for n, it in enumerate(items, 1):
-        tags = [it.kind]
+        if scoring.is_home(it, hs):
+            parts["HOME"].append(n)
         if scoring.is_deployment(it):
-            tags.append("force-movement")
-        if it.count > 1:
-            tags.append(f"{it.count} sources")
-        where = f" | {it.place}" if it.place else ""
-        lines.append(f"[{n}] ({', '.join(tags)}; {it.source}{where}) {it.title}")
-    lights = "; ".join(f"{label}: {word}" for _, label, _, word, _ in controller.indicators())
-    home = ", ".join(controller.settings["home_states"]) or "not set"
-    prompt = (f"Home states: {home}.\nStatus lights (reporting volume, not facts): {lights}.\n\n"
-              f"Headlines from the last {hours} hours:\n" + "\n".join(lines) + "\n\n" + FORMAT)
-    return prompt, items
+            parts["FORCE MOVEMENTS"].append(n)
+        elif it.kind in ("health", "hazard", "weather", "space"):
+            parts["HEALTH, WEATHER AND HAZARDS"].append(n)
+        elif it.kind in ("conflict", "military", "news"):
+            parts["CONFLICT AND CRISES"].append(n)
+    return items, parts
 
 
-def cited_sources(text, items):
-    """The numbered list of headlines the brief actually cites, so each claim can be checked."""
-    nums = sorted({int(n) for n in re.findall(r"\[(\d{1,3})\]", text) if 1 <= int(n) <= len(items)})
-    out = []
-    for n in nums:
-        it = items[n - 1]
-        out.append(f"[{n}] {it.title} ({it.source}{', ' + it.url if it.url else ''})")
+def headline_line(n, it):
+    tags = [it.kind] + (["force-movement"] if scoring.is_deployment(it) else []) + ([f"{it.count} sources"] if it.count > 1 else [])
+    where = f" | {it.place}" if it.place else ""
+    return f"[{n}] ({', '.join(tags)}; {it.source}{where}) {it.title}"
+
+
+def clean_points(text, allowed, limit=5):
+    """Keeps the model's bullet points, drops repeats and citations that point outside the section."""
+    out, seen = [], set()
+    for raw in text.splitlines():
+        ln = raw.strip().lstrip("#*-• ").strip()
+        if not ln or ln.upper().rstrip(":") in {n for n, _ in SECTIONS} | {"BOTTOM LINE"}:
+            continue
+        ln = re.sub(r"\[(\d{1,3})\]", lambda m: m.group(0) if int(m.group(1)) in allowed else "", ln)
+        ln = re.sub(r"\s{2,}", " ", ln).strip()
+        key = re.sub(r"[^a-z0-9]+", " ", ln.lower())
+        if not ln or key in seen:
+            continue
+        seen.add(key)
+        out.append("- " + ln)
+        if len(out) >= limit:
+            break
     return out
 
 
-DISCLAIMER = ("AI-written summary of the headlines below, made on this PC by a small model. It can miss things or word them "
-              "badly. Check the numbered sources before relying on anything here.")
+DISCLAIMER = ("AI-written summary of the headlines listed under each part, made on this PC by a small model. It can miss things or "
+              "word them badly, so the full list of headlines is always shown. Check the sources before relying on anything.")
 
 
-def format_brief(text, items):
-    src = cited_sources(text, items)
-    uncited = len(re.findall(r"\[\d{1,3}\]", text)) == 0
-    parts = [DISCLAIMER, "", text.strip()]
-    if uncited:
-        parts += ["", "(The model gave no source numbers for this brief. Treat it with extra care.)"]
-    if src:
-        parts += ["", "Sources it cited:"] + ["  " + s for s in src]
-    return "\n".join(parts)
+def short(it, n):
+    return f"  [{n}] {it.title} ({it.source}{', ' + it.url if it.url else ''})"
+
+
+def build_brief(items, parts, summaries, bottom):
+    out = [DISCLAIMER, "", "BOTTOM LINE"] + (bottom or ["- (The model gave no summary.)"]) + [""]
+    for name, _ in SECTIONS:
+        nums = parts[name]
+        out.append(name)
+        if not nums:
+            out += ["- Nothing reported.", ""]
+            continue
+        out += summaries.get(name) or ["- (The model gave no summary for this part.)"]
+        out.append("  Headlines:")
+        out += [short(items[n - 1], n) for n in nums[:8]]
+        if len(nums) > 8:
+            out.append(f"  ...and {len(nums) - 8} more in the feed.")
+        out.append("")
+    return "\n".join(out).rstrip()
 
 
 class AiService:
@@ -285,15 +306,28 @@ class AiService:
     def write_brief(self, say=None):
         host = self._ensure(say)
         small = "2b" in (getattr(host, "model", "") or "").lower()
-        prompt, items = brief_input(self.c, max_items=24 if small else 36)
+        items, parts = gather(self.c, max_items=24 if small else 36)
         if not items:
             raise RuntimeError("There is nothing saved from the last 24 hours yet. Refresh first.")
+        home = ", ".join(self.c.settings["home_states"]) or "not set"
+        summaries = {}
+        todo = [(name, why) for name, why in SECTIONS if parts[name]]
+        for k, (name, why) in enumerate(todo, 1):
+            if say:
+                say(f"Writing part {k} of {len(todo) + 1}: {name.title()}")
+            lines = "\n".join(headline_line(n, items[n - 1]) for n in parts[name][:10])
+            prompt = (f"Part: {name} ({why}). Home states: {home}.\n\nHeadlines:\n{lines}\n\n"
+                      "Write 2 to 4 short bullet points that summarize only these headlines. Start each with '- ' and end each "
+                      "with the headline numbers in square brackets.")
+            summaries[name] = clean_points(host.chat(SYSTEM, prompt, max_tokens=260, temperature=0.3), set(parts[name]))
         if say:
-            say("Writing the brief (a minute or two on a laptop)")
-        text = host.chat(SYSTEM, prompt, max_tokens=700, temperature=0.3)
-        if not text:
-            raise RuntimeError("The model returned nothing. Try again.")
-        return format_brief(text, items)
+            say(f"Writing part {len(todo) + 1} of {len(todo) + 1}: Bottom line")
+        top = list(range(1, min(len(items), 7) + 1))
+        lines = "\n".join(headline_line(n, items[n - 1]) for n in top)
+        prompt = (f"Home states: {home}.\n\nThe most serious headlines:\n{lines}\n\nWrite exactly two short sentences on what "
+                  "matters most right now. End each sentence with the headline numbers in square brackets.")
+        bottom = clean_points(host.chat(SYSTEM, prompt, max_tokens=160, temperature=0.3), set(top), limit=2)
+        return build_brief(items, parts, summaries, bottom)
 
     def translate(self, text, target="English", say=None):
         """Uses the translation model when one is in the models folder (Hy-MT style prompt)."""
