@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+<defs>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2f3f5"/><stop offset=".5" stop-color="#8d9199"/><stop offset="1" stop-color="#d8dadf"/></linearGradient>
+<linearGradient id="fire" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff7a2a"/><stop offset="1" stop-color="#d63b0c"/></linearGradient>
+<radialGradient id="iris" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffb066"/><stop offset=".45" stop-color="#ff6a1a"/><stop offset="1" stop-color="#7a2205"/></radialGradient>
+<radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ff6a1a" stop-opacity=".35"/><stop offset="1" stop-color="#ff6a1a" stop-opacity="0"/></radialGradient>
+<clipPath id="shield"><path id="sp" d="M500 70 L840 170 L880 520 L760 780 L500 930 L240 780 L120 520 L160 170 Z"/></clipPath>
+</defs>
+<rect width="1000" height="1000" fill="#0b0b0d"/>
+<circle cx="500" cy="400" r="330" fill="url(#glow)"/>
+<path d="M500 52 L862 158 L904 526 L776 800 L500 962 L224 800 L96 526 L138 158 Z" fill="none" stroke="url(#steel)" stroke-width="14" stroke-linejoin="round"/>
+<path d="M500 82 L842 182 L880 522 L760 778 L500 924 L240 778 L120 522 L158 182 Z" fill="#131316" stroke="#ff5a14" stroke-width="5" stroke-linejoin="round"/>
+<g clip-path="url(#shield)" opacity=".55" stroke="#ff6a1a" stroke-width="1.5" fill="none">
+<circle cx="500" cy="400" r="150"/><circle cx="500" cy="400" r="230"/><circle cx="500" cy="400" r="310"/>
+<path d="M500 90V710M190 400H810"/></g>
+<path d="M500 400 L760 250 A300 300 0 0 0 640 130 Z" fill="#ff6a1a" opacity=".18" clip-path="url(#shield)"/>
+<path d="M500 400 L760 250" stroke="#ff8a3a" stroke-width="4" opacity=".9" clip-path="url(#shield)"/>
+<!-- eye -->
+<path d="M210 420 Q500 190 790 420 Q500 560 210 420 Z" fill="#0b0b0d" stroke="url(#steel)" stroke-width="14" stroke-linejoin="round"/>
+<circle cx="500" cy="410" r="92" fill="url(#iris)" stroke="#ffb066" stroke-width="4"/>
+<circle cx="500" cy="410" r="60" fill="none" stroke="#2a0f04" stroke-width="3" opacity=".7"/>
+<circle cx="500" cy="410" r="30" fill="#1a0a03" stroke="#ff8a3a" stroke-width="3"/>
+<circle cx="488" cy="398" r="8" fill="#fff" opacity=".85"/>
+<path d="M500 300V330M500 490V520M390 410H420M580 410H610" stroke="#fff" stroke-width="4" opacity=".8"/>
+<!-- flame -->
+<path d="M500 120 C560 190 520 235 545 285 C505 262 470 292 478 338 C448 290 478 250 500 215 C505 180 488 150 500 120 Z" fill="url(#fire)"/>
+<path d="M500 214 C525 250 505 275 520 305 C498 292 484 308 487 332 C470 300 488 270 500 214 Z" fill="#ffb066" opacity=".7"/>
+<!-- text -->
+<text x="500" y="640" text-anchor="middle" font-family="Arial Black,Impact,Arial,sans-serif" font-weight="900" font-size="104" fill="url(#steel)" letter-spacing="6">CINDRIX</text>
+<text x="500" y="715" text-anchor="middle" font-family="Arial Black,Impact,Arial,sans-serif" font-weight="900" font-size="62" fill="#ff5a14" letter-spacing="10">OVERWATCH</text>
+<g stroke="#ff5a14" stroke-width="3"><path d="M170 700H250"/><path d="M750 700H830"/></g>
+<text x="500" y="775" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="40" fill="#e9eaee" letter-spacing="14">CAM</text>
+<!-- icons -->
+<g transform="translate(0,-22)"><g transform="translate(0,0)" stroke="#9aa0a8" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+<rect x="398" y="808" width="34" height="58" rx="6"/><circle cx="415" cy="826" r="7"/><path d="M410 856H420"/>
+<path d="M458 832Q500 800 542 832M472 848Q500 826 528 848"/><circle cx="500" cy="862" r="4" fill="#9aa0a8"/>
+<rect x="566" y="822" width="44" height="26" rx="4"/><path d="M614 830V840"/><path d="M574 830V840M584 830V840"/>
+</g></g>
+</svg>
