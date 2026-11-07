@@ -142,7 +142,7 @@ def main():
         assert "custom-0" not in app.feed_rows and not c.settings["custom_feeds"]
 
         # Watchtower settings: add, switch, remove, and the supported-cameras window
-        app.wt_name.set("Front door"); app.wt_host.set("192.168.1.20")
+        app.wt_name.set("Front door"); app.wt_host.set("rtsp://192.168.1.20:554/stream1")
         from cindrix_overwatch import ui_cameras
         ui_cameras._add(app, [b for b in __import__("cindrix_overwatch.cameras", fromlist=["x"]).brands() if b["tier"] != "no"])
         assert len(c.cameras()) == 1 and len(app.wt_rows) == 1, "camera must appear with its own switch"
