@@ -15,6 +15,11 @@ enum class FeedFilter(val label: String) { ALL("All"), MILITARY("Military"), HAZ
 
 private const val AUTO_MINUTES = 15
 
+/** What the Intel filters offer. "Near home" is within 1000 km of the home states; the world regions are rough boxes and need a map pin. */
+val REGION_CHOICES = listOf("Everywhere" to null, "Near home (1000 km)" to "home", "Americas" to "Americas", "Europe" to "Europe",
+    "Middle East" to "Middle East", "Africa" to "Africa", "Asia-Pacific" to "Asia-Pacific")
+val SEVERITY_CHOICES = listOf("Any severity" to 0, "Notice and up" to 1, "Warning and up" to 2, "Severe only" to 3)
+
 class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     val engine = Engine(app)
 
@@ -38,6 +43,8 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     var mineOn by mutableStateOf(true)
     var channel by mutableStateOf("military")
     var intelDash by mutableStateOf(true)
+    var regionLabel by mutableStateOf("Everywhere")
+    var minSev by mutableStateOf(0)
     var top by mutableStateOf<List<Pair<Item, List<String>>>>(emptyList())
     var troopsOnly by mutableStateOf(false)
     var intelSearch by mutableStateOf("")
@@ -79,7 +86,7 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
         val count = engine.store.count()
         val hs = engine.homeStates
         val hp = engine.geo.homePoint(hs)
-        val tp = engine.topWarnings()
+        val tp = engine.topWarnings(10, regionCode(), minSev)
         withContext(Dispatchers.Main) {
             items = feedItems; indicators = ind; sources = src; newCount = n; prevOpen = prev; lastRefresh = last
             storedCount = count; home = hs; homePoint = hp; top = tp
@@ -150,10 +157,24 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     fun onMap(it: Item): Boolean =
         it.pinned && (layerOf(it.kind) in layers || (deployOn && isDeployment(it)) || (mineOn && it.mine))
 
+    fun regionCode(): String? = REGION_CHOICES.firstOrNull { it.first == regionLabel }?.second
+
+    /** The where / how serious filters. A region needs a pin. */
+    fun ok(it: Item): Boolean {
+        if (it.severity < minSev) return false
+        val r = regionCode() ?: return true
+        if (!it.pinned) return false
+        if (r == "home") return homePoint?.let { hp -> haversineKm(hp.first, hp.second, it.lat!!, it.lon!!) <= 1000 } ?: false
+        return regionOf(it.lat!!, it.lon!!) == r
+    }
+
+    fun setRegion(label: String) { regionLabel = label; viewModelScope.launch { reload() } }
+    fun setSeverity(n: Int) { minSev = n; viewModelScope.launch { reload() } }
+
     fun intelList(): List<Item> {
         val q = intelSearch.trim().lowercase()
         return items.filter {
-            intelChannel(it) == channel && (!troopsOnly || isDeployment(it)) &&
+            intelChannel(it) == channel && ok(it) && (!troopsOnly || isDeployment(it)) &&
                 (q.isEmpty() || (it.title + " " + it.summary + " " + it.source + " " + it.place).lowercase().contains(q))
         }.take(200)
     }
@@ -161,25 +182,30 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     /** What a dashboard panel shows: the newest five, the home area first for alerts. */
     fun dashRows(id: String): List<Item> {
         val now = nowSeconds()
-        val l = items.filter { intelChannel(it) == id && now - it.ts <= 48 * 3600 }
+        val l = items.filter { intelChannel(it) == id && now - it.ts <= 48 * 3600 && ok(it) }
         return (if (id == "alerts") l.sortedWith(compareBy<Item>({ !isHome(it, home) }, { -it.severity }, { -it.ts })) else l).take(5)
     }
 
     fun troopRows(): List<Item> {
         val now = nowSeconds()
-        return items.filter { isDeployment(it) && now - it.ts <= 24 * 3600 }.take(5)
+        return items.filter { isDeployment(it) && now - it.ts <= 24 * 3600 && ok(it) }.take(5)
     }
 
     fun seeAll(id: String, troops: Boolean = false) {
         channel = id; troopsOnly = troops; intelSearch = ""; intelDash = false
     }
 
-    fun channelCount(id: String): Int = items.count { intelChannel(it) == id }
+    fun channelCount(id: String): Int = items.count { intelChannel(it) == id && ok(it) }
 
     fun openReader(item: Item) {
         reader = item; readerText = ""; readerNote = ""; pinNote = ""
         selected = item
         tab = 1
+        // a copy saved the last time this was read opens with no internet
+        viewModelScope.launch {
+            val saved = withContext(Dispatchers.IO) { engine.readCached(item.url) }
+            if (saved != null && reader?.uid == item.uid && readerText.isEmpty()) { readerText = saved; readerNote = "Saved copy, readable with no internet." }
+        }
     }
 
     fun closeReader() { reader = null; readerText = ""; readerNote = ""; pinNote = "" }
@@ -191,10 +217,18 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val (code, body) = withContext(Dispatchers.IO) { httpFetch(item.url) }
             if (reader?.uid != item.uid) return@launch
-            if (code != 200) { readerNote = "Could not load the page here" + (if (code != 0) " (HTTP $code)" else "") + ". Use Open in browser instead."; return@launch }
+            val saved = withContext(Dispatchers.IO) { engine.readCached(item.url) }
+            if (code != 200) {
+                if (saved != null) { readerText = saved; readerNote = "Could not reach the site. Showing the saved copy." }
+                else readerNote = "Could not load the page here" + (if (code != 0) " (HTTP $code)" else "") + ". Use Open in browser instead."
+                return@launch
+            }
             val text = htmlToText(body)
             if (text.isBlank()) readerNote = "This page has no text Overwatch can show (it may need a browser). Use Open in browser instead."
-            else { readerText = text; readerNote = "" }
+            else {
+                readerText = text; readerNote = ""
+                withContext(Dispatchers.IO) { engine.cacheArticle(item.url, text) }
+            }
         }
     }
 

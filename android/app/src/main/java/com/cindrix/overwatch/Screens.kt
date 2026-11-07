@@ -211,6 +211,7 @@ fun IntelScreen(vm: OverwatchViewModel) {
             }
             item { FilterChip(selected = vm.troopsOnly, onClick = { vm.troopsOnly = !vm.troopsOnly }, label = { Text("Troop movements only") }) }
         }
+        Box(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) { IntelFilters(vm) }
         OutlinedTextField(vm.intelSearch, { vm.intelSearch = it }, Modifier.fillMaxWidth().padding(8.dp), singleLine = true, placeholder = { Text("Search this channel") })
         if (list.isEmpty()) {
             Text(if (vm.items.isEmpty()) "Nothing here yet. Tap Refresh while online. Saved items show even offline." else "Nothing in this channel right now.",
@@ -223,9 +224,26 @@ fun IntelScreen(vm: OverwatchViewModel) {
 }
 
 @Composable
+fun IntelFilters(vm: OverwatchViewModel) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("Where", fontSize = 11.sp, color = Ow.Muted, modifier = Modifier.padding(start = 4.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(REGION_CHOICES) { (label, _) -> FilterChip(selected = vm.regionLabel == label, onClick = { vm.setRegion(label) }, label = { Text(label) }) }
+        }
+        Text("How serious", fontSize = 11.sp, color = Ow.Muted, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(SEVERITY_CHOICES) { (label, n) -> FilterChip(selected = vm.minSev == n, onClick = { vm.setSeverity(n) }, label = { Text(label) }) }
+        }
+        if (vm.regionCode() != null) Text("A region needs a map pin, so stories not on the map are hidden while one is chosen.", fontSize = 11.sp, color = Ow.Muted,
+            modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+    }
+}
+
+@Composable
 fun DashboardScreen(vm: OverwatchViewModel) {
     val pad = androidx.compose.foundation.layout.PaddingValues(10.dp)
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { IntelFilters(vm) }
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { items(vm.indicators) { IndicatorTile(it) } }
         }

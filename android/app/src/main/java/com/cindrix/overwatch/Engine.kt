@@ -231,6 +231,21 @@ class Engine(
 
     fun allItems(hours: Int = 72): List<Item> = store.items(clock() - hours * 3600)
 
+    /** The Intel filters. A region needs a pin, so a story not on the map is left out when one is chosen. "home" means within 1000 km of home. */
+    fun passes(it: Item, region: String?, minSeverity: Int): Boolean {
+        if (it.severity < minSeverity) return false
+        if (region == null) return true
+        if (!it.pinned) return false
+        if (region == "home") {
+            val hp = geo.homePoint(homeStates) ?: return false
+            return haversineKm(hp.first, hp.second, it.lat!!, it.lon!!) <= 1000
+        }
+        return regionOf(it.lat!!, it.lon!!) == region
+    }
+
+    fun readCached(url: String): String? = store.article(url)
+    fun cacheArticle(url: String, body: String) { if (body.isNotBlank()) store.saveArticle(url, body, clock()) }
+
     fun feed(kinds: Set<Kind>? = null, homeOnly: Boolean = false, text: String = "", hours: Int = 72, limit: Int = 300): List<Item> {
         val home = homeStates
         val q = text.trim().lowercase()
@@ -257,7 +272,8 @@ class Engine(
     fun unpinItem(uid: String) = store.clearUserPin(uid)
 
     /** The Top 10 for early warning with the reasons each one is there, for the Intel dashboard. */
-    fun topWarnings(n: Int = 10): List<Pair<Item, List<String>>> = topWarnings(group(allItems(48)), homeStates, clock(), n)
+    fun topWarnings(n: Int = 10, region: String? = null, minSeverity: Int = 0): List<Pair<Item, List<String>>> =
+        topWarnings(group(allItems(48)).filter { passes(it, region, minSeverity) }, homeStates, clock(), n)
 
     fun indicators(): List<Indicator> = indicators(allItems(24 * 7), homeStates, geo, clock())
 

@@ -8,7 +8,7 @@ import android.database.sqlite.SQLiteOpenHelper
 data class Health(val ok: Boolean, val lastOk: Double?, val lastTry: Double, val count: Int, val error: String)
 
 /** Local history in one SQLite file. This is what keeps working when the internet does not. */
-class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 3) {
+class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 4) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE items (uid TEXT PRIMARY KEY, source_id TEXT, source TEXT, kind TEXT, trust TEXT, title TEXT, " +
             "url TEXT, summary TEXT, ts REAL, lat REAL, lon REAL, place TEXT, severity INTEGER, states TEXT, first_seen REAL, last_seen REAL)")
@@ -17,6 +17,11 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 3) {
         db.execSQL("CREATE TABLE meta (k TEXT PRIMARY KEY, v TEXT)")
         addAiTables(db)
         addUserPinTable(db)
+        addArticleTable(db)
+    }
+
+    private fun addArticleTable(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS articles (url TEXT PRIMARY KEY, body TEXT, ts REAL)")
     }
 
     private fun addUserPinTable(db: SQLiteDatabase) {
@@ -31,6 +36,7 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 3) {
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) addAiTables(db)
         if (oldVersion < 3) addUserPinTable(db)
+        if (oldVersion < 4) addArticleTable(db)
     }
 
     // Translations and AI-named places live in their own tables so the original story is never touched.
@@ -61,6 +67,17 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 3) {
         val cv = ContentValues().apply { put("uid", uid); put("place", place); put("lat", lat); put("lon", lon); put("ts", now) }
         writableDatabase.insertWithOnConflict("user_pins", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
     }
+
+    /** Articles read in the reader are kept so they open again with no internet. */
+    @Synchronized
+    fun saveArticle(url: String, body: String, now: Double) {
+        val cv = ContentValues().apply { put("url", url); put("body", body); put("ts", now) }
+        writableDatabase.insertWithOnConflict("articles", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    @Synchronized
+    fun article(url: String): String? =
+        readableDatabase.rawQuery("SELECT body FROM articles WHERE url=?", arrayOf(url)).use { if (it.moveToFirst()) it.getString(0) else null }
 
     @Synchronized
     fun clearUserPin(uid: String) { writableDatabase.delete("user_pins", "uid=?", arrayOf(uid)) }
@@ -145,6 +162,7 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 3) {
         db.execSQL("DELETE FROM translations WHERE uid NOT IN (SELECT uid FROM items)")
         db.execSQL("DELETE FROM ai_pins WHERE uid NOT IN (SELECT uid FROM items)")
         db.execSQL("DELETE FROM user_pins WHERE uid NOT IN (SELECT uid FROM items)")
+        db.delete("articles", "ts<?", arrayOf(olderThan.toString()))
     }
 
     @Synchronized
@@ -153,6 +171,7 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 3) {
         writableDatabase.delete("translations", null, null)
         writableDatabase.delete("ai_pins", null, null)
         writableDatabase.delete("user_pins", null, null)
+        writableDatabase.delete("articles", null, null)
         writableDatabase.delete("health", null, null)
     }
 

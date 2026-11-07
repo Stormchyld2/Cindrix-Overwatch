@@ -74,3 +74,14 @@ fun haversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double 
     val a = sin(dp / 2) * sin(dp / 2) + cos(p1) * cos(p2) * sin(dl / 2) * sin(dl / 2)
     return 2 * r * asin(sqrt(a))
 }
+
+/** Rough world regions for the Intel filters, based on where a story is pinned. A story that is not on the map has no region. */
+val REGIONS = listOf("Americas", "Europe", "Middle East", "Africa", "Asia-Pacific")
+
+fun regionOf(lat: Double, lon: Double): String = when {
+    lon in -170.0..-30.0 -> "Americas"
+    lat in 12.0..42.0 && lon in 34.0..63.0 -> "Middle East"
+    lat >= 35.0 && lon in -25.0..45.0 -> "Europe"
+    lat >= -35.0 && lat < 35.0 && lon in -20.0..55.0 -> "Africa"
+    else -> "Asia-Pacific"
+}

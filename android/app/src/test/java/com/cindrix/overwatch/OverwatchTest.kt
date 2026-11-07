@@ -255,4 +255,13 @@ class OverwatchTest {
         assertEquals(3, text.split("\n\n").size)
         assertTrue(htmlToText("<p>" + "word ".repeat(10000) + "</p>", 500).length <= 500)
     }
+
+    @Test fun worldRegionsFromCoordinates() {
+        assertEquals("Europe", regionOf(50.45, 30.52))
+        assertEquals("Middle East", regionOf(31.77, 35.21))
+        assertEquals("Americas", regionOf(38.9, -77.0))
+        assertEquals("Africa", regionOf(-1.3, 36.8))
+        assertEquals("Asia-Pacific", regionOf(25.0, 121.5))
+        assertTrue(REGION_CHOICES.mapNotNull { it.second }.filter { it != "home" }.all { it in REGIONS })
+    }
 }
