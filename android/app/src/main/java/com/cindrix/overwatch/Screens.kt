@@ -98,7 +98,7 @@ fun TopBar(vm: OverwatchViewModel) {
     val now = nowSeconds()
     val offline = vm.lastRefresh > 0 && vm.sources.isNotEmpty() && vm.sources.none { it.health?.ok == true }
     Row(Modifier.fillMaxWidth().background(Ow.Panel).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(R.drawable.header_icon), contentDescription = "Cindrix Overwatch", modifier = Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)))
+        Image(painterResource(R.drawable.header_icon), contentDescription = "Cindrix Overwatch", modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text("CINDRIX OVERWATCH", fontWeight = FontWeight.Bold, fontSize = 16.sp, letterSpacing = 1.sp)

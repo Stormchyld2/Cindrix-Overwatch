@@ -16,7 +16,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
-        splash.setKeepOnScreenCondition { !vm.ready }
+        // keep the logo up for a moment even when the data is ready at once, so it can be seen
+        val shownSince = System.currentTimeMillis()
+        splash.setKeepOnScreenCondition { !vm.ready || System.currentTimeMillis() - shownSince < 1500 }
         enableEdgeToEdge()
         setContent {
             OverwatchTheme {

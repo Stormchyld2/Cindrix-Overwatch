@@ -1,4 +1,5 @@
 <resources>
     <color name="ow_bg">#1F2226</color>
-    <color name="ow_splash">#0B0C0E</color>
+    <color name="ow_splash">#0F1216</color>
+    <color name="ow_icon_bg">#0F1216</color>
 </resources>

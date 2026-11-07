@@ -1068,17 +1068,18 @@ class App:
         self.root.withdraw()
         s = tk.Toplevel(self.root)
         s.overrideredirect(True)
-        s.configure(bg="#0B0C0E")
-        w, h = 720, 480
-        s.geometry(f"{w}x{h}+{(s.winfo_screenwidth() - w) // 2}+{(s.winfo_screenheight() - h) // 3}")
+        bg = "#0A0D10"
+        s.configure(bg=bg)
+        w, h = 520, 580
+        s.geometry(f"{w}x{h}+{(s.winfo_screenwidth() - w) // 2}+{max(0, (s.winfo_screenheight() - h) // 3)}")
         try:
             self.splash_img = tk.PhotoImage(file=os.path.join(DATA, "splash.png"))
-            tk.Label(s, image=self.splash_img, bg="#0B0C0E").pack(pady=(24, 8))
+            tk.Label(s, image=self.splash_img, bg=bg, bd=0).pack()
         except tk.TclError:
-            tk.Label(s, text="CINDRIX OVERWATCH", font=self.f_big, fg=theme.BONE, bg="#0B0C0E").pack(pady=120)
-        self.splash_status = tk.Label(s, text="Starting...", font=self.f_small, fg=theme.MUTED, bg="#0B0C0E")
-        self.splash_status.pack()
-        tk.Label(s, text=f"Version {__version__}", font=self.f_small, fg=theme.MUTED, bg="#0B0C0E").pack(pady=4)
+            tk.Label(s, text="CINDRIX OVERWATCH", font=self.f_big, fg=theme.BONE, bg=bg).pack(pady=200)
+        self.splash_status = tk.Label(s, text="Starting...", font=self.f_small, fg=theme.MUTED, bg=bg)
+        self.splash_status.pack(pady=(4, 0))
+        tk.Label(s, text=f"Version {__version__}", font=self.f_small, fg=theme.MUTED, bg=bg).pack(pady=2)
         s.attributes("-topmost", True)
         s.update()
         self.splash_win = s
