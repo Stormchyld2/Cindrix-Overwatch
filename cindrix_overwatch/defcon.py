@@ -13,6 +13,18 @@ from .feeds import _strip_html
 URL = "https://www.defconlevel.com/"
 STALE_HOURS = 6
 WORDS = {5: "Lowest readiness", 4: "Increased intelligence watch", 3: "Increase in force readiness", 2: "Next step to war", 1: "Maximum readiness"}
+# (level, exercise name, what it means, readiness): the commonly cited public summary, not the text of an official order
+LEVELS = (
+    (5, "FADE OUT", "Lowest state of readiness", "Normal peacetime readiness"),
+    (4, "DOUBLE TAKE", "Increased intelligence watch and strengthened security", "Above normal readiness"),
+    (3, "ROUND HOUSE", "Force readiness raised above normal", "Air Force ready to mobilize in 15 minutes"),
+    (2, "FAST PACE", "Next step to nuclear war", "Forces ready to deploy and engage in under six hours"),
+    (1, "COCKED PISTOL", "Nuclear war imminent or already begun", "Maximum readiness, immediate response"),
+)
+GUIDE_INTRO = ("DEFCON (defense readiness condition) is the five-step scale the US military uses to set how ready its forces are for war. "
+               "It counts down: 5 is normal peacetime, 1 is the most severe.")
+GUIDE_NOTE = ("The US has never declared DEFCON 1. The highest level on record is DEFCON 2, for Strategic Air Command in October 1962. "
+              "The current level is never announced, so any live number, including Overwatch's, is an estimate and not an official figure.")
 _LEVEL_WORD = ("QUIET", "WATCH", "ELEVATED", "HIGH")
 
 

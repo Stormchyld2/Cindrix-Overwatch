@@ -362,6 +362,27 @@ class App:
         else:
             self.defcon_pub.configure(text="Public: not read yet", bg=theme.PANEL_HIGH, fg=theme.MUTED)
 
+    def show_defcon_guide(self):
+        """A short pop-up: each DEFCON level and what it means."""
+        from . import defcon
+        w = tk.Toplevel(self.root)
+        w.title("What the DEFCON levels mean")
+        w.configure(bg=theme.CHARCOAL)
+        w.transient(self.root)
+        w.geometry("640x520")
+        self.label(w, "DEFCON levels", self.f_big, bg=theme.CHARCOAL).pack(anchor="w", padx=18, pady=(14, 2))
+        self.label(w, defcon.GUIDE_INTRO, self.f_small, theme.MUTED, bg=theme.CHARCOAL, wraplength=600, justify="left").pack(anchor="w", padx=18)
+        for lvl, name, means, ready in defcon.LEVELS:
+            row = tk.Frame(w, bg=theme.PANEL)
+            row.pack(fill="x", padx=18, pady=(8, 0))
+            tk.Label(row, text=f"DEFCON {lvl}", font=self.f_bold, fg=theme.ON_BLUE, bg=theme.DEFCON_COLORS[lvl], width=10, pady=6).pack(side="left", padx=8, pady=8)
+            col = tk.Frame(row, bg=theme.PANEL)
+            col.pack(side="left", fill="x", expand=True, pady=6)
+            self.label(col, f"{means}  ({name.title()})", self.f_bold, bg=theme.PANEL, wraplength=480, justify="left").pack(anchor="w")
+            self.label(col, ready, self.f_small, theme.MUTED, bg=theme.PANEL, wraplength=480, justify="left").pack(anchor="w")
+        self.label(w, defcon.GUIDE_NOTE, self.f_small, theme.AMBER, bg=theme.CHARCOAL, wraplength=600, justify="left").pack(anchor="w", padx=18, pady=(14, 6))
+        self.btn(w, "Close", w.destroy, small=True).pack(anchor="e", padx=18, pady=6)
+
     def show_defcon(self):
         from . import defcon
         d = self.c.defcon()
@@ -1017,6 +1038,11 @@ class App:
         self.auto_var = tk.IntVar(value=self.c.settings["auto_minutes"])
         tk.Spinbox(row2, from_=5, to=120, textvariable=self.auto_var, width=6, bg=theme.CHARCOAL, fg=theme.BONE,
                    relief="flat", command=self._save_auto).pack(side="left", ipady=4)
+        self.label(card, "DEFCON", self.f_big).pack(fill="x", padx=16, pady=(14, 2))
+        self.label(card, "The header shows two DEFCON readings. Neither is official.", self.f_small, theme.MUTED).pack(fill="x", padx=16)
+        rowd = tk.Frame(card, bg=theme.PANEL)
+        rowd.pack(fill="x", padx=16, pady=8)
+        self.btn(rowd, "What do the DEFCON levels mean?", self.show_defcon_guide, small=True).pack(side="left")
         self.label(card, "Saved history", self.f_big).pack(fill="x", padx=16, pady=(14, 2))
         self.hist_label = self.label(card, "", self.f_small, theme.MUTED)
         self.hist_label.pack(fill="x", padx=16)

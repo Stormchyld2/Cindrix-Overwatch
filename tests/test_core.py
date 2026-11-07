@@ -999,6 +999,9 @@ class Translation(unittest.TestCase):
         self.assertEqual(src["parser"], "auto")
 
     def test_defcon_reading_estimate_and_public_tracker(self):
+        from cindrix_overwatch import defcon as _d
+        self.assertEqual([x[0] for x in _d.LEVELS], [5, 4, 3, 2, 1])
+        self.assertTrue(all(x[1] and x[2] and x[3] for x in _d.LEVELS))
         import tempfile
         from cindrix_overwatch import defcon, scoring
         page = "<h1>DEFCON Level Threat Monitor</h1><p>LIVE &middot; <b>OSINT Estimate: DEFCON 3</b> &middot; Updated Nov 6, 2026 (UTC)</p>"

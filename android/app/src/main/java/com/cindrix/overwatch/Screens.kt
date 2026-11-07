@@ -145,6 +145,31 @@ fun DefconChips(vm: OverwatchViewModel, now: Double) {
 }
 
 @Composable
+fun DefconGuideDialog(onClose: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        confirmButton = { TextButton(onClick = onClose) { Text("Close") } },
+        title = { Text("DEFCON levels") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(Defcon.GUIDE_INTRO, fontSize = 12.sp, color = Ow.Muted)
+                Defcon.LEVELS.forEach { l ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("${l.level}", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Ow.OnBlue,
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(defconColor(l.level)).padding(horizontal = 12.dp, vertical = 8.dp))
+                        Column {
+                            Text("${l.means} (${l.name})", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(l.readiness, fontSize = 12.sp, color = Ow.Muted)
+                        }
+                    }
+                }
+                Text(Defcon.GUIDE_NOTE, fontSize = 12.sp, color = Ow.Amber)
+            }
+        },
+    )
+}
+
+@Composable
 fun DefconDialog(vm: OverwatchViewModel) {
     val e = vm.defconEst ?: return
     val p = vm.defconPub
@@ -555,6 +580,14 @@ fun SettingsScreen(vm: OverwatchViewModel) {
             OutlinedTextField(home, { home = it }, Modifier.fillMaxWidth(), singleLine = true)
             Button(onClick = { vm.saveHome(home) }, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Save home") }
             if (vm.message.isNotEmpty()) Text(vm.message, fontSize = 12.sp, color = Ow.Muted)
+        }
+        var guide by remember { mutableStateOf(false) }
+        if (guide) DefconGuideDialog { guide = false }
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("DEFCON", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("The header shows two DEFCON readings. Neither is official.", fontSize = 12.sp, color = Ow.Muted)
+            Button(onClick = { guide = true }, shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("What do the DEFCON levels mean?") }
         }
         FeedsSection(vm)
         WatchtowerSection(vm)

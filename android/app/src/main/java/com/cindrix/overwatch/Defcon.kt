@@ -13,6 +13,20 @@ object Defcon {
     val WORDS = mapOf(5 to "Lowest readiness", 4 to "Increased intelligence watch", 3 to "Increase in force readiness",
         2 to "Next step to war", 1 to "Maximum readiness")
 
+    /** (level, exercise name, what it means, readiness): the commonly cited public summary, not the text of an official order. */
+    data class Level(val level: Int, val name: String, val means: String, val readiness: String)
+    val LEVELS = listOf(
+        Level(5, "Fade Out", "Lowest state of readiness", "Normal peacetime readiness"),
+        Level(4, "Double Take", "Increased intelligence watch and strengthened security", "Above normal readiness"),
+        Level(3, "Round House", "Force readiness raised above normal", "Air Force ready to mobilize in 15 minutes"),
+        Level(2, "Fast Pace", "Next step to nuclear war", "Forces ready to deploy and engage in under six hours"),
+        Level(1, "Cocked Pistol", "Nuclear war imminent or already begun", "Maximum readiness, immediate response"),
+    )
+    const val GUIDE_INTRO = "DEFCON (defense readiness condition) is the five-step scale the US military uses to set how ready its forces are for war. " +
+        "It counts down: 5 is normal peacetime, 1 is the most severe."
+    const val GUIDE_NOTE = "The US has never declared DEFCON 1. The highest level on record is DEFCON 2, for Strategic Air Command in October 1962. " +
+        "The current level is never announced, so any live number, including Overwatch's, is an estimate and not an official figure."
+
     data class Public(val level: Int, val updated: String, val fetched: Double) {
         fun old(now: Double) = fetched <= 0 || now - fetched > STALE_HOURS * 3600
     }

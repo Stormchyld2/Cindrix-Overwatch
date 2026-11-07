@@ -183,6 +183,13 @@ def main():
         assert app.defcon_box.winfo_ismapped(), "DEFCON must come back on Intel"
         app.show_page("settings")
 
+        # the DEFCON guide opens from General settings and lists all five levels
+        before = set(app.root.winfo_children())
+        app.show_defcon_guide()
+        new = [w for w in app.root.winfo_children() if w not in before]
+        assert len(new) == 1 and new[0].title() == "What the DEFCON levels mean"
+        new[0].destroy()
+
         # lock: needs a PIN first, then covers the tab until the right PIN is typed
         app.lock_mode.set("pin")
         ui_cameras.lock_apply(app)
