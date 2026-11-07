@@ -96,7 +96,7 @@ def main():
         pump(app, 0.2)
         assert intel.mode == "dash"
         app.show_page("settings")
-        assert len(app.tree.get_children()) >= 15, len(app.tree.get_children())
+        assert len(app.feed_rows) >= 15, len(app.feed_rows)
         assert len(app.onion_tree.get_children()) >= 8
         assert app.tor_status.cget("text")
         app.settings_tabs.select(2)
@@ -124,6 +124,14 @@ def main():
         app._add_feed()
         wait_refresh(app)
         assert len(c.settings["custom_feeds"]) == 1
+        assert "custom-0" in app.feed_rows, "a new feed must get its own switch in Settings"
+        # every feed has a switch: flip one off and on again
+        app._flip_source("usgs", False)
+        assert "usgs" in c.settings["disabled"]
+        app._flip_source("usgs", True)
+        assert "usgs" not in c.settings["disabled"]
+        app._remove_feed(0)
+        assert "custom-0" not in app.feed_rows and not c.settings["custom_feeds"]
 
         app.root.destroy()
         c.close()

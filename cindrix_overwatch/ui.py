@@ -10,7 +10,7 @@ import webbrowser
 from tkinter import font as tkfont
 from tkinter import messagebox, ttk
 
-from . import __version__, ai, geo, theme
+from . import __version__, ai, geo, sources, theme
 from .engine import Controller
 from .mapview import DEFAULT_LAYERS, WorldMap
 from . import tor as _tor, torbrowser, ui_extra, ui_intel
@@ -26,6 +26,10 @@ LAYER_CHIPS = [("Military", "military"), ("Troop movements", "deploy"), ("Confli
 
 def default_root():
     return os.path.join(os.path.expanduser("~"), "Downloads", "Cindrix", "Overwatch")
+
+
+# What the add-feed form asks for: the same four categories the Intel dashboard uses, and the kind each one files under.
+FEED_CATEGORIES = [("Military", "military"), ("World news", "news"), ("Cyber", "cyber"), ("Alerts and weather", "hazard")]
 
 
 def ago(ts, now):
@@ -617,48 +621,97 @@ class App:
         self.brief_note.configure(text="Saved to " + path)
 
     def _build_sources(self, p):
-        p.rowconfigure(1, weight=1)
+        p.rowconfigure(2, weight=1)
         p.columnconfigure(0, weight=1)
         bar = tk.Frame(p, bg=theme.CHARCOAL)
         bar.grid(row=0, column=0, sticky="ew", padx=14, pady=10)
         self.btn(bar, "Check all sources now", lambda: self.start_refresh(force=True), primary=True).pack(side="left")
-        self.btn(bar, "Turn selected on or off", self._toggle_source).pack(side="left", padx=8)
         self.btn(bar, "Export source list", self._export_sources).pack(side="left", padx=8)
         self.btn(bar, "Assistant: find and connect a feed", lambda: ui_extra.FeedAssistant(self, self.cf_url.get().strip()),
                  primary=True).pack(side="left", padx=8)
-        self.tree = ttk.Treeview(p, columns=("group", "status", "items", "last", "trust"), show="tree headings")
-        for col, text, w in (("#0", "Source", 260), ("group", "Group", 90), ("status", "Status", 300),
-                             ("items", "Items", 60), ("last", "Last worked", 110), ("trust", "Trust", 110)):
-            self.tree.heading(col, text=text)
-            self.tree.column(col, width=w, anchor="w")
-        self.tree.grid(row=1, column=0, sticky="nsew", padx=14)
+        # add a feed: it appears in the list below with its own switch
         add = tk.Frame(p, bg=theme.PANEL)
-        add.grid(row=2, column=0, sticky="ew", padx=14, pady=10)
-        self.label(add, "Add your own feed (RSS or Atom, https only; .onion works when Tor is running)", self.f_bold).grid(row=0, column=0, columnspan=6,
-                                                                                         sticky="w", padx=12, pady=(10, 4))
-        self.cf_name, self.cf_url, self.cf_kind = tk.StringVar(), tk.StringVar(), tk.StringVar(value="news")
+        add.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 8))
+        self.label(add, "Add your own feed (RSS or Atom, https only; .onion works when Tor is running). It gets its own on/off switch below.",
+                   self.f_bold).grid(row=0, column=0, columnspan=8, sticky="w", padx=12, pady=(10, 4))
+        self.cf_name, self.cf_url = tk.StringVar(), tk.StringVar()
+        self.cf_cat = tk.StringVar(value=FEED_CATEGORIES[1][0])
         for i, (text, var, wd) in enumerate((("Name", self.cf_name, 20), ("Address", self.cf_url, 50))):
             self.label(add, text, self.f_small, theme.MUTED).grid(row=1, column=i * 2, sticky="w", padx=(12, 4))
             tk.Entry(add, textvariable=var, width=wd, bg=theme.CHARCOAL, fg=theme.BONE, insertbackground=theme.BONE,
                      relief="flat").grid(row=1, column=i * 2 + 1, sticky="w", ipady=4)
-        ttk.Combobox(add, textvariable=self.cf_kind, values=["news", "military", "conflict", "hazard", "health"],
-                     width=10, state="readonly").grid(row=1, column=4, padx=8)
-        self.btn(add, "Add feed", self._add_feed, small=True).grid(row=1, column=5, padx=4)
-        self.btn(add, "Remove selected custom feed", self._remove_feed, small=True).grid(row=1, column=6, padx=4)
+        self.label(add, "Category", self.f_small, theme.MUTED).grid(row=1, column=4, sticky="w", padx=(12, 4))
+        ttk.Combobox(add, textvariable=self.cf_cat, values=[c for c, _ in FEED_CATEGORIES], width=18,
+                     state="readonly").grid(row=1, column=5, padx=4)
+        self.btn(add, "Add feed", self._add_feed, small=True).grid(row=1, column=6, padx=8)
         self.src_note = self.label(add, "", self.f_small, theme.MUTED)
-        self.src_note.grid(row=2, column=0, columnspan=7, sticky="w", padx=12, pady=(4, 10))
+        self.src_note.grid(row=2, column=0, columnspan=8, sticky="w", padx=12, pady=(4, 10))
+        # the list of every feed, each with a switch
+        box = tk.Frame(p, bg=theme.CHARCOAL)
+        box.grid(row=2, column=0, sticky="nsew", padx=14, pady=(0, 10))
+        box.rowconfigure(0, weight=1)
+        box.columnconfigure(0, weight=1)
+        self.feed_canvas2 = cv = tk.Canvas(box, bg=theme.CHARCOAL, highlightthickness=0)
+        sb = ttk.Scrollbar(box, orient="vertical", command=cv.yview)
+        cv.configure(yscrollcommand=sb.set)
+        cv.grid(row=0, column=0, sticky="nsew")
+        sb.grid(row=0, column=1, sticky="ns")
+        self.feed_list = tk.Frame(cv, bg=theme.CHARCOAL)
+        win = cv.create_window(0, 0, window=self.feed_list, anchor="nw")
+        self.feed_list.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
+        cv.bind("<Configure>", lambda e: cv.itemconfigure(win, width=e.width))
+        cv.bind("<Enter>", lambda e: cv.bind_all("<MouseWheel>", lambda ev: cv.yview_scroll(-1 if ev.delta > 0 else 1, "units")))
+        cv.bind("<Leave>", lambda e: cv.unbind_all("<MouseWheel>"))
+        self.feed_rows = {}
 
     def _render_sources(self):
-        self.tree.delete(*self.tree.get_children())
+        cv = self.feed_canvas2
+        top = cv.yview()[0]
+        for w in self.feed_list.winfo_children():
+            w.destroy()
+        self.feed_rows = {}
         now = self.c.now()
         disabled = set(self.c.settings["disabled"])
+        groups = {}
         for row in self.c.source_status():
-            h = row["health"]
-            status = "not checked yet" if not h else ("working" if h["ok"] else "problem: " + (h["error"] or "failed"))
-            self.tree.insert("", "end", iid=row["id"], text=row["name"], values=(
-                row["group"], status, h["count"] if h and h["ok"] else "", ago(h["last_ok"], now) if h and h["last_ok"] else "",
-                TRUST_LABELS[row["trust"]]))
-        self.src_note.configure(text=f"{len(disabled)} built-in source(s) turned off." if disabled else "")
+            groups.setdefault(row["group"], []).append(row)
+        for group, rows in groups.items():
+            self.label(self.feed_list, group.upper(), self.f_small, theme.MUTED).pack(fill="x", padx=4, pady=(10, 2))
+            for row in rows:
+                self._feed_row(row, row["id"] not in disabled, now)
+        self.src_note.configure(text=f"{len(disabled)} source(s) turned off." if disabled else "", fg=theme.MUTED)
+        cv.update_idletasks()
+        cv.yview_moveto(top)
+
+    def _feed_row(self, row, on, now):
+        h = row["health"]
+        status = "not checked yet" if not h else (f"working, {h['count']} items, {ago(h['last_ok'], now)}" if h["ok"]
+                                                  else "problem: " + (h["error"] or "failed"))
+        if not on:
+            status = "turned off"
+        fr = tk.Frame(self.feed_list, bg=theme.PANEL)
+        fr.pack(fill="x", pady=2)
+        sid = row["id"]
+        sw = tk.Label(fr, text="ON " if on else " OFF", font=self.f_bold, width=5, cursor="hand2",
+                      bg=theme.BLUE if on else theme.PANEL_HIGH, fg=theme.ON_BLUE if on else theme.MUTED)
+        sw.pack(side="left", padx=10, pady=8)
+        sw.bind("<Button-1>", lambda e, i=sid, now_on=on: self._flip_source(i, not now_on))
+        info = tk.Frame(fr, bg=theme.PANEL)
+        info.pack(side="left", fill="x", expand=True, pady=4)
+        tk.Label(info, text=row["name"], font=self.f_bold, fg=theme.BONE if on else theme.MUTED, bg=theme.PANEL, anchor="w").pack(fill="x")
+        bad = h and not h["ok"] and on
+        cat = next((n for _, n, ks in sources.INTEL_CHANNELS if row["kind"] in ks), "")
+        tk.Label(info, text=f"{cat}  \u00b7  {TRUST_LABELS[row['trust']]}  \u00b7  {status}", font=self.f_small, fg=theme.RED if bad else theme.MUTED,
+                 bg=theme.PANEL, anchor="w").pack(fill="x")
+        if sid.startswith("custom-"):
+            rm = tk.Label(fr, text="Remove", font=self.f_small, fg=theme.BLUE, bg=theme.PANEL, cursor="hand2")
+            rm.pack(side="right", padx=12)
+            rm.bind("<Button-1>", lambda e, i=int(sid.split("-")[1]): self._remove_feed(i))
+        self.feed_rows[sid] = sw
+
+    def _flip_source(self, sid, enable):
+        self.c.set_source_enabled(sid, enable)
+        self._render_sources()
 
     def _render_ai(self):
         st = self.c.ai.status()
@@ -852,17 +905,9 @@ class App:
             return True
         return open_url(url)
 
-    def _toggle_source(self):
-        sel = self.tree.selection()
-        if not sel:
-            return
-        sid = sel[0]
-        self.c.set_source_enabled(sid, sid in self.c.settings["disabled"])
-        self._render_sources()
-
     def _add_feed(self):
         try:
-            self.c.add_custom_feed(self.cf_name.get(), self.cf_url.get(), self.cf_kind.get())
+            self.c.add_custom_feed(self.cf_name.get(), self.cf_url.get(), dict(FEED_CATEGORIES).get(self.cf_cat.get(), "news"))
         except ValueError as e:
             self.src_note.configure(text=str(e), fg=theme.RED)
             return
@@ -872,11 +917,9 @@ class App:
         self._render_sources()
         self.start_refresh(force=True)
 
-    def _remove_feed(self):
-        sel = self.tree.selection()
-        if sel and sel[0].startswith("custom-"):
-            self.c.remove_custom_feed(int(sel[0].split("-")[1]))
-            self._render_sources()
+    def _remove_feed(self, index):
+        self.c.remove_custom_feed(index)
+        self._render_sources()
 
     def _build_settings(self, p):
         p.columnconfigure(0, weight=1)
