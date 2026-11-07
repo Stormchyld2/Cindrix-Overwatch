@@ -228,21 +228,12 @@ fun BriefScreen(vm: OverwatchViewModel) {
     Column(Modifier.fillMaxSize().padding(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
-                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, if (vm.aiBrief.isNotEmpty()) vm.aiBrief + "\n\n" + vm.brief else vm.brief)
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, vm.brief)
                 ctx.startActivity(Intent.createChooser(send, "Share brief").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Share brief") }
-            if (vm.aiUrl.isNotEmpty()) Button(onClick = { vm.writeAiBrief() }, enabled = !vm.aiBusy, shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Write AI brief") }
         }
-        if (vm.aiNote.isNotEmpty()) Text(vm.aiNote, fontSize = 12.sp, color = Ow.Muted, modifier = Modifier.padding(top = 6.dp))
         Spacer(Modifier.height(8.dp))
         Column(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).verticalScroll(rememberScrollState()).padding(14.dp)) {
-            if (vm.aiBrief.isNotEmpty()) {
-                Text(vm.aiBrief, fontSize = 13.sp)
-                Spacer(Modifier.height(16.dp))
-                Text("PLAIN BRIEF (no AI)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Ow.Muted)
-                Spacer(Modifier.height(6.dp))
-            }
             Text(vm.brief, fontSize = 13.sp)
         }
     }
@@ -334,7 +325,7 @@ fun SettingsScreen(vm: OverwatchViewModel) {
             var aiText by remember { mutableStateOf(vm.aiUrl) }
             Text("AI helper (optional)", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text("A phone cannot run the model. Type the address of a computer on your network that runs one (for example http://192.168.1.20:8080). " +
-                "With it set, Overwatch can write an AI brief, translate foreign headlines and place stories on the map. Leave empty to keep the AI off.", fontSize = 12.sp, color = Ow.Muted)
+                "With it set, Overwatch can translate foreign headlines and place stories on the map. The brief never uses AI. Leave empty to keep the AI off.", fontSize = 12.sp, color = Ow.Muted)
             OutlinedTextField(aiText, { aiText = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("AI server address") })
             Button(onClick = { vm.saveAiUrl(aiText) }, shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Save") }

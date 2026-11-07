@@ -138,9 +138,6 @@ class OverwatchTest {
         assertNull(onionUrl("1".repeat(56) + ".onion"))
     }
 
-    private fun item(id: String, title: String, kind: Kind = Kind.NEWS, sev: Int = 1, trust: Trust = Trust.WIRE) =
-        Item(id, id, kind, trust, title, "https://example.org/$id", "", NOW, severity = sev)
-
     @Test fun aiAddressMustBeLocalOrHttps() {
         assertEquals("http://192.168.1.20:8080", validAiUrl("192.168.1.20:8080/"))
         assertEquals("http://localhost:8080", validAiUrl("http://localhost:8080"))
@@ -160,47 +157,10 @@ class OverwatchTest {
         assertEquals("The government announced measures", cleanTranslation("\"The government announced measures\"", "Le gouvernement a annoncé des mesures"))
     }
 
-    @Test fun groundedRejectsInventedNumbersAndConfirmations() {
-        val src = listOf("Poland reported 3 000 extra troops moved to its eastern border")
-        assertTrue(grounded("- Poland reported extra troops moved to its eastern border [1].", src))
-        assertFalse(grounded("- Poland reported 5000 extra troops moved to its eastern border [1].", src))
-        assertFalse(grounded("- Poland confirmed extra troops moved to its eastern border [1].", src))
-        assertFalse(grounded("- Take 500 mg of the tablets near the eastern border [1].", src))
-    }
-
-    @Test fun cleanPointsKeepsOnlyCitedGroundedPoints() {
-        val texts = mapOf(1 to "Navy sends two destroyers to the Baltic Sea for an exercise", 2 to "Poland reported extra troops moved to its eastern border")
-        val reply = "- Two destroyers were reported sent to the Baltic Sea for an exercise [1].\n" +
-            "- Two destroyers were reported sent to the Baltic Sea for an exercise [1].\n" +
-            "- The army will certainly win the war by spring [2].\n" +
-            "- No citation on this point at all.\n" +
-            "- Poland reported moving extra troops to its eastern border [2][9]."
-        val out = cleanPoints(reply, setOf(1, 2), texts = texts)
-        assertEquals(2, out.size)
-        assertTrue(out[1].endsWith("[2]."))
-    }
-
     @Test fun parsePlacesReadsNumberedLines() {
         val m = parsePlaces("1: Kyiv, Ukraine\n2: none\n3. **Gaza**\n9: Paris\nnoise", 3)
         assertEquals(setOf(1, 3), m.keys)
         assertEquals("Kyiv, Ukraine", m[1])
-    }
-
-    @Test fun aiBriefIsBuiltPartByPartAndFallsBackWhenUngrounded() {
-        val items = listOf(
-            item("a", "Navy sends two destroyers to the Baltic Sea for an exercise", Kind.MILITARY, 2, Trust.OFFICIAL),
-            item("b", "Earthquake hits Chile", Kind.HAZARD, 3),
-        )
-        val (its, parts) = gatherBrief(items, listOf("WV"))
-        assertEquals(2, its.size)
-        val said = mutableListOf<String>()
-        val text = writeAiBrief(its, parts, listOf("WV"), emptyList(), { said += it }) { _, user, _, _ ->
-            if (user.contains("destroyers")) "- Two destroyers were reported sent to the Baltic Sea for an exercise [1]." else "- Invented 99 casualties [2]."
-        }
-        assertTrue(text.startsWith(AI_DISCLAIMER))
-        assertTrue(text.contains("Two destroyers were reported sent"))
-        assertTrue(text.contains("could not be matched to the headlines"))
-        assertTrue(said.isNotEmpty())
     }
 
     @Test fun onionAddressesAreFeedsReadThroughTor() {

@@ -278,15 +278,6 @@ class Engine(
 
     private fun ai(): AiClient = AiClient(aiUrl.ifEmpty { throw AiError("Set the AI server address in Settings first.") })
 
-    /** Writes the AI brief. Blocks while the model works, so call it off the main thread. */
-    fun aiBrief(say: (String) -> Unit = {}): String {
-        val client = ai()
-        val (items, parts) = gatherBrief(group(allItems(24)), homeStates, 24)
-        if (items.isEmpty()) throw AiError("There is nothing saved from the last 24 hours yet. Refresh first.")
-        val changes = regionChanges(allItems(48), homeStates, clock())
-        return writeAiBrief(items, parts, homeStates, changes, say) { s, u, m, t -> client.chat(s, u, m, t) }
-    }
-
     /** Translates new non-English headlines into English, one at a time. A failure is remembered so it is not retried. */
     fun autoTranslate(limit: Int = 30): Int {
         if (aiUrl.isEmpty()) return 0
