@@ -499,6 +499,7 @@ fun SettingsScreen(vm: OverwatchViewModel) {
             if (vm.message.isNotEmpty()) Text(vm.message, fontSize = 12.sp, color = Ow.Muted)
         }
         FeedsSection(vm)
+        WatchtowerSection(vm)
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Saved history", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text("${vm.storedCount} items kept for 30 days on this device. They show even with no internet.", fontSize = 12.sp, color = Ow.Muted)

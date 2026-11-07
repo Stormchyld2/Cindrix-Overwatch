@@ -301,6 +301,18 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
         return err
     }
 
+    var cameras by mutableStateOf(engine.cameras)
+
+    fun addCamera(name: String, brandId: String, host: String, user: String, password: String, port: String): String? {
+        val err = engine.addCamera(name, brandId, host, user, password, port.ifBlank { null })
+        cameras = engine.cameras
+        return err
+    }
+
+    fun removeCamera(id: String) { engine.removeCamera(id); cameras = engine.cameras }
+
+    fun setCameraEnabled(id: String, on: Boolean) { engine.setCameraEnabled(id, on); cameras = engine.cameras }
+
     fun removeFeed(index: Int) { engine.removeFeed(index); viewModelScope.launch { reload() } }
 
     fun setEnabled(id: String, on: Boolean) { engine.setEnabled(id, on); viewModelScope.launch { reload() } }

@@ -106,6 +106,35 @@ class Engine(
             prefs.edit().putString("custom", arr.toString()).apply()
         }
 
+    // ----- cameras (Watchtower) -----
+    val cameraCatalog: Catalog by lazy { Cameras.parseCatalog(ctx.assets.open("camera_catalog.json").bufferedReader().readText()) }
+
+    var cameras: List<Camera>
+        get() = try {
+            val arr = JSONArray(prefs.getString("cameras", "[]"))
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                Camera(o.getString("id"), o.getString("name"), o.optString("brand", "other"), o.getString("main"), o.optString("sub"),
+                    o.optString("user"), o.optString("password"), o.optBoolean("enabled", true))
+            }
+        } catch (e: Exception) { emptyList() }
+        set(v) {
+            val arr = JSONArray()
+            v.forEach {
+                arr.put(JSONObject().put("id", it.id).put("name", it.name).put("brand", it.brand).put("main", it.main).put("sub", it.sub)
+                    .put("user", it.user).put("password", it.password).put("enabled", it.enabled))
+            }
+            prefs.edit().putString("cameras", arr.toString()).apply()
+        }
+
+    /** Adds a camera, or returns a plain-words problem. There is no limit on how many. */
+    fun addCamera(name: String, brandId: String, host: String, user: String, password: String, port: String?): String? =
+        try { cameras = cameras + Cameras.newCamera(cameraCatalog, name, brandId, host, user, password, port); null } catch (e: CameraError) { e.message }
+
+    fun removeCamera(id: String) { cameras = cameras.filter { it.id != id } }
+
+    fun setCameraEnabled(id: String, on: Boolean) { cameras = cameras.map { if (it.id == id) it.copy(enabled = on) else it } }
+
     fun setHome(text: String): String? {
         val codes = text.replace(";", ",").split(",").map { it.trim().uppercase() }.filter { it.isNotEmpty() }
         val bad = codes.filter { it !in geo.states }

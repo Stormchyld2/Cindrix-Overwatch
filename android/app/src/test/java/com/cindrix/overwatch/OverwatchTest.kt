@@ -264,4 +264,35 @@ class OverwatchTest {
         assertEquals("Asia-Pacific", regionOf(25.0, 121.5))
         assertTrue(REGION_CHOICES.mapNotNull { it.second }.filter { it != "home" }.all { it in REGIONS })
     }
+
+    // ----- cameras -----
+    private val camCat get() = Cameras.parseCatalog(File(assets, "camera_catalog.json").readText())
+
+    @Test fun cameraCatalogMatchesPcCopyAndIsWellFormed() {
+        assertEquals(File("../../cindrix_overwatch/data/camera_catalog.json").readText(), File(assets, "camera_catalog.json").readText())
+        val c = camCat
+        assertTrue(c.brands.size >= 20)
+        assertEquals(c.brands.size, c.brands.map { it.id }.toSet().size)
+        c.brands.forEach { assertTrue(it.id, it.tier in c.tiers); if (it.tier == "no") assertEquals("", it.main) }
+    }
+
+    @Test fun cameraAddressesAndLogins() {
+        val c = camCat
+        assertEquals("rtsp://192.168.1.20:554/Preview_01_main", Cameras.buildAddress(c, "reolink", "192.168.1.20"))
+        val cam = Cameras.newCamera(c, "Front", "other", "rtsp://admin:p%40ss@10.0.0.5:554/stream1")
+        assertEquals("admin", cam.user)
+        assertEquals("p@ss", cam.password)
+        assertFalse(Cameras.shownAddress(cam).contains("p%40ss"))
+        assertEquals("rtsp://admin:p%40ss@10.0.0.5:554/stream1", Cameras.streamAddress(cam))
+    }
+
+    @Test fun badCameraInputGivesPlainWords() {
+        val c = camCat
+        for (args in listOf(listOf("Door", "reolink", ""), listOf("Cloud", "ring", "10.0.0.2"), listOf("X", "reolink", "10.0.0.2", "", "", "99999"))) {
+            try {
+                Cameras.newCamera(c, args[0], args[1], args[2], port = args.getOrNull(5))
+                fail("expected an error for $args")
+            } catch (e: CameraError) { assertTrue(e.message!!.isNotEmpty()) }
+        }
+    }
 }
