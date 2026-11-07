@@ -20,6 +20,9 @@ val REGION_CHOICES = listOf("Everywhere" to null, "Near home (1000 km)" to "home
     "Middle East" to "Middle East", "Africa" to "Africa", "Asia-Pacific" to "Asia-Pacific")
 val SEVERITY_CHOICES = listOf("Any severity" to 0, "Notice and up" to 1, "Warning and up" to 2, "Severe only" to 3)
 
+/** One camera in the viewer: typed in on this phone, or handed over by the home PC. */
+class ViewCam(val id: String, val name: String, val local: Camera?, val linked: LinkedCamera?)
+
 class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     val engine = Engine(app)
 
@@ -302,6 +305,82 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     var cameras by mutableStateOf(engine.cameras)
+
+    // ----- Watchtower viewer -----
+    var linkedCams by mutableStateOf(engine.linked)
+    /** The address the home PC answered on (its Wi-Fi address at home, its VPN address away), or null when it cannot be reached. */
+    var linkHost by mutableStateOf<String?>(null)
+    var linkNote by mutableStateOf("")
+    var linkBusy by mutableStateOf(false)
+    var lockMode by mutableStateOf(engine.lockMode)
+    var wtMode by mutableStateOf(engine.wtMode)
+    var wtOne by mutableStateOf(engine.wtOne)
+    var wtSlots by mutableStateOf(engine.wtSlots)
+    var alerts by mutableStateOf<List<Pair<String, String>>>(emptyList())
+
+    /** Every camera the viewer can show: the ones typed in here plus the ones the home PC handed over. */
+    fun viewCams(): List<ViewCam> = cameras.filter { it.enabled }.map { ViewCam(it.id, it.name, it, null) } + linkedCams.map { ViewCam("L" + it.id, it.name, null, it) }
+
+    fun address(vc: ViewCam, sub: Boolean): String? = vc.local?.let { Cameras.streamAddress(it, sub) } ?: vc.linked?.let { l -> linkHost?.let { l.address(it, sub) } }
+
+    fun setWtMode(m: Int) { wtMode = m; engine.wtMode = m }
+    fun setWtOne(id: String) { wtOne = id; engine.wtOne = id }
+
+    /** Fills the four docks with valid cameras (the saved ones first), so the 4-camera view is never empty while cameras exist. */
+    fun fixedSlots(): List<String> {
+        val ids = viewCams().map { it.id }
+        val slots = (wtSlots + listOf("", "", "", "")).take(4).map { if (it in ids) it else "" }
+        val spare = ids.filter { it !in slots }.toMutableList()
+        return slots.map { it.ifEmpty { if (spare.isNotEmpty()) spare.removeAt(0) else "" } }
+    }
+
+    /** Puts a camera in a dock. If it was already in another dock the two swap. */
+    fun placeInDock(id: String, dock: Int) {
+        val s = fixedSlots().toMutableList()
+        val at = s.indexOf(id)
+        if (at >= 0 && at != dock) s[at] = s[dock]
+        s[dock] = id
+        wtSlots = s
+        engine.wtSlots = s
+    }
+
+    fun setLockMode(m: LockMode) { lockMode = m; engine.lockMode = m }
+
+    /** Finds the home PC (over Wi-Fi if at home, through the VPN if away) and fetches its camera list. */
+    fun connectHome(ctx: android.content.Context) {
+        val code = Link.parseCode(engine.linkCode) ?: run { linkNote = "No pairing code yet. Paste the one from your PC."; return }
+        if (linkBusy) return
+        linkBusy = true
+        linkNote = "Looking for your home PC..."
+        viewModelScope.launch {
+            val note = withContext(Dispatchers.IO) {
+                val conf = engine.wgConf.ifEmpty { null }
+                if (conf != null && HomeLink.consentIntent(ctx) != null) {
+                    linkHost = null
+                    return@withContext "Allow the VPN first (Settings > Watchtower > Allow the VPN)."
+                }
+                val host = HomeLink.reachPc(ctx, code, conf)
+                linkHost = host
+                if (host == null) return@withContext "Could not reach your home PC. Check that Overwatch is running on it with the phone link on" +
+                    (if (conf == null) ", and paste your VPN config to connect from away." else ", and that CindrixVPN is connected there.")
+                val cams = HomeLink.fetchCameras(host, code.port, code.token)
+                    ?: return@withContext "The PC answered but did not accept the code. Make sure the code is the newest one."
+                engine.linked = cams
+                linkedCams = cams
+                "Connected" + (if (host == code.lan) " over your home Wi-Fi" else " through the VPN") + ". Got ${cams.size} camera" + (if (cams.size == 1) "" else "s") + "."
+            }
+            linkNote = note
+            linkBusy = false
+        }
+    }
+
+    fun saveLinkCode(text: String): String? = engine.saveLinkCode(text)
+
+    fun saveWgConf(text: String): String? = engine.saveWgConf(text)
+
+    fun hasWg(): Boolean = engine.wgConf.isNotEmpty()
+
+    fun linkCodeText(): String = engine.linkCode
 
     fun addCamera(name: String, brandId: String, host: String, user: String, password: String, port: String): String? {
         val err = engine.addCamera(name, brandId, host, user, password, port.ifBlank { null })

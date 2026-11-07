@@ -1,9 +1,14 @@
 package com.cindrix.overwatch
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -26,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -126,6 +132,58 @@ fun SupportedCamerasDialog(cat: Catalog, onClose: () -> Unit) {
                 if (shown.isEmpty()) item { Text("Nothing matches. Try another word or filter.", fontSize = 12.sp, color = Ow.Muted, modifier = Modifier.padding(8.dp)) }
             }
             TextButton(onClick = onClose, modifier = Modifier.align(Alignment.End)) { Text("Close") }
+        }
+    }
+}
+
+
+/** Settings > Watchtower > Phone link: the home PC's pairing code and the built-in VPN config. */
+@Composable
+fun PhoneLinkSection(vm: OverwatchViewModel) {
+    val ctx = LocalContext.current
+    var code by remember { mutableStateOf(vm.linkCodeText()) }
+    var conf by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        note = if (it.resultCode == Activity.RESULT_OK) "The VPN is allowed." else "The VPN was not allowed. Watching from away needs it."
+    }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Phone link: your home PC", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text("Brings your PC's cameras to this phone, at home or away. On the PC open Settings > Watchtower > Phone link, switch it on, and copy the code.", fontSize = 12.sp, color = Ow.Muted)
+        OutlinedTextField(code, { code = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Pairing code") })
+        Text("To watch away from home, the phone joins your CindrixVPN server for Overwatch only. On the server run: sudo ./cindrixvpn-server.sh add-client overwatch-phone. Paste the whole file here.", fontSize = 12.sp, color = Ow.Muted)
+        OutlinedTextField(conf, { conf = it }, Modifier.fillMaxWidth().height(120.dp), label = { Text(if (vm.hasWg()) "VPN config (saved; paste to replace)" else "VPN config") })
+        Button(onClick = {
+            var msg = ""
+            if (code.isNotBlank()) vm.saveLinkCode(code)?.let { msg = it }
+            if (msg.isEmpty() && conf.isNotBlank()) { vm.saveWgConf(conf)?.let { msg = it }; if (msg.isEmpty()) conf = "" }
+            if (msg.isEmpty()) { note = "Saved."; vm.connectHome(ctx) } else note = msg
+        }, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Save and connect") }
+        Button(onClick = { HomeLink.consentIntent(ctx)?.let { consent.launch(it) } ?: run { note = "The VPN is already allowed." } }, shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Allow the VPN") }
+        val shownNote = vm.linkNote.ifEmpty { note }
+        if (note.isNotEmpty()) Text(note, fontSize = 12.sp, color = Ow.Muted)
+        if (vm.linkNote.isNotEmpty() && vm.linkNote != note) Text(shownNote, fontSize = 12.sp, color = Ow.Muted)
+    }
+}
+
+/** Settings > Watchtower > Lock: how the Watchtower tab is unlocked. Android shows its own unlock screen. */
+@Composable
+fun LockSection(vm: OverwatchViewModel) {
+    val ctx = LocalContext.current
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Lock Watchtower", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text("Ask for an unlock when Watchtower opens, and again after you have been away from it for a minute. Android shows its own unlock screen, so it is always in front.", fontSize = 12.sp, color = Ow.Muted)
+        LockMode.entries.forEach { m ->
+            val ok = AppLock.available(ctx, m)
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Ow.PanelHigh).clickable(enabled = ok) { vm.setLockMode(m) }.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(m.label, fontSize = 14.sp, color = if (ok) Ow.Bone else Ow.Muted)
+                    if (!ok) Text("Set this up in your phone's own settings first.", fontSize = 11.sp, color = Ow.Muted)
+                }
+                if (vm.lockMode == m) Text("On", color = Ow.Blue, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

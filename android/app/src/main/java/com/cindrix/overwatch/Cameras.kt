@@ -42,7 +42,7 @@ object Cameras {
     }
 
     private fun dec(s: String) = URLDecoder.decode(s.replace("+", "%2B"), "UTF-8")
-    private fun enc(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+    fun enc(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
 
     private data class Parts(val scheme: String, val user: String?, val pass: String?, val host: String, val port: String?, val rest: String)
 

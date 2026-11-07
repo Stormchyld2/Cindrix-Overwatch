@@ -81,11 +81,12 @@ fun OverwatchApp(vm: OverwatchViewModel) {
                 1 -> IntelScreen(vm)
                 2 -> FeedScreen(vm)
                 3 -> BriefScreen(vm)
+                4 -> WatchtowerScreen(vm)
                 else -> SettingsScreen(vm)
             }
         }
         NavigationBar(containerColor = Ow.Panel) {
-            listOf("Map", "Intel", "Feed", "Brief", "Settings").forEachIndexed { i, label ->
+            listOf("Map", "Intel", "Feed", "Brief", "Watchtower", "Settings").forEachIndexed { i, label ->
                 NavigationBarItem(selected = vm.tab == i, onClick = { vm.tab = i }, icon = {}, label = { Text(label, fontSize = 12.sp, maxLines = 1) },
                     alwaysShowLabel = true)
             }
@@ -500,6 +501,8 @@ fun SettingsScreen(vm: OverwatchViewModel) {
         }
         FeedsSection(vm)
         WatchtowerSection(vm)
+        PhoneLinkSection(vm)
+        LockSection(vm)
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Saved history", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text("${vm.storedCount} items kept for 30 days on this device. They show even with no internet.", fontSize = 12.sp, color = Ow.Muted)

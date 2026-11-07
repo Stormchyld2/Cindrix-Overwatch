@@ -295,4 +295,43 @@ class OverwatchTest {
             } catch (e: CameraError) { assertTrue(e.message!!.isNotEmpty()) }
         }
     }
+
+    // ----- phone link -----
+    @Test fun linkCodeMatchesThePcFormat() {
+        val c = Link.parseCode("OW1/192.168.1.50/10.66.66.2/8099/K7Q2M9XD4PRTAB3C")!!
+        assertEquals(LinkCode("192.168.1.50", "10.66.66.2", 8099, "K7Q2M9XD4PRTAB3C"), c)
+        assertEquals(LinkCode(null, "10.66.66.2", 8099, "ABC"), Link.parseCode("OW1/-/10.66.66.2/8099/ABC"))
+        for (bad in listOf("", "nonsense", "OW2/a/b/1/T", "OW1/a/b/x/T", "OW1/a/b/8099/T-T", "OW1/a/b/0/T")) assertNull(bad, Link.parseCode(bad))
+    }
+
+    @Test fun linkedCameraAddressUsesTheHostItWasReachedOn() {
+        val json = """{"v":1,"cameras":[{"id":"a1","name":"Front","brand":"reolink","port":8601,"user":"admin","password":"p@ss",
+            "main":{"scheme":"rtsp","path":"/Preview_01_main"},"sub":{"scheme":"rtsp","path":"/Preview_01_sub"}}]}"""
+        val cam = Link.parseCameras(json).single()
+        assertEquals("rtsp://admin:p%40ss@10.66.66.2:8601/Preview_01_main", cam.address("10.66.66.2"))
+        assertEquals("rtsp://admin:p%40ss@192.168.1.50:8601/Preview_01_sub", cam.address("192.168.1.50", sub = true))
+    }
+
+    @Test fun vpnConfigIsRewrittenToOnlyCarryHomeTrafficForOverwatch() {
+        val conf = """
+            [Interface]
+            PrivateKey = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+            Address = 10.66.66.3/32
+            DNS = 1.1.1.1
+
+            [Peer]
+            PublicKey = BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=
+            Endpoint = 203.0.113.9:51820
+            AllowedIPs = 0.0.0.0/0, ::/0
+            PersistentKeepalive = 25
+        """.trimIndent()
+        assertEquals(Link.WgInfo("10.66.66.3/32", "203.0.113.9:51820"), Link.wgInfo(conf))
+        val out = Link.rewriteWg(conf, "com.cindrix.overwatch")!!
+        assertTrue(out.contains("AllowedIPs = 10.66.66.0/24"))
+        assertFalse(out.contains("0.0.0.0/0"))
+        assertFalse(out.contains("DNS"))
+        assertTrue(out.contains("IncludedApplications = com.cindrix.overwatch"))
+        assertNull(Link.rewriteWg("[Interface]\nAddress = nonsense", "x"))
+        assertNull(Link.wgInfo("hello"))
+    }
 }

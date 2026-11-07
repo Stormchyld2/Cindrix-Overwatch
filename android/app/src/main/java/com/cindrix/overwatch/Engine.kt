@@ -115,19 +115,76 @@ class Engine(
             (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
                 Camera(o.getString("id"), o.getString("name"), o.optString("brand", "other"), o.getString("main"), o.optString("sub"),
-                    o.optString("user"), o.optString("password"), o.optBoolean("enabled", true))
+                    o.optString("user"), Secrets.open(o.optString("password")), o.optBoolean("enabled", true))
             }
         } catch (e: Exception) { emptyList() }
         set(v) {
             val arr = JSONArray()
             v.forEach {
                 arr.put(JSONObject().put("id", it.id).put("name", it.name).put("brand", it.brand).put("main", it.main).put("sub", it.sub)
-                    .put("user", it.user).put("password", it.password).put("enabled", it.enabled))
+                    .put("user", it.user).put("password", Secrets.seal(it.password)).put("enabled", it.enabled))
             }
             prefs.edit().putString("cameras", arr.toString()).apply()
         }
 
     /** Adds a camera, or returns a plain-words problem. There is no limit on how many. */
+    // ----- phone link to the home PC, and the Watchtower lock -----
+    var linkCode: String
+        get() = prefs.getString("link_code", "") ?: ""
+        set(v) { prefs.edit().putString("link_code", v).apply() }
+
+    /** The VPN config, scrambled with the phone's key because it holds a private key. */
+    var wgConf: String
+        get() = Secrets.open(prefs.getString("wg_conf", "") ?: "")
+        set(v) { prefs.edit().putString("wg_conf", Secrets.seal(v)).apply() }
+
+    var linked: List<LinkedCamera>
+        get() = try {
+            val arr = JSONArray(prefs.getString("linked", "[]"))
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                LinkedCamera(o.getString("id"), o.getString("name"), o.optString("brand", "other"), o.getInt("port"), o.optString("user"),
+                    Secrets.open(o.optString("password")), o.optString("ms"), o.optString("mp"), o.optString("ss"), o.optString("sp"))
+            }
+        } catch (e: Exception) { emptyList() }
+        set(v) {
+            val arr = JSONArray()
+            v.forEach {
+                arr.put(JSONObject().put("id", it.id).put("name", it.name).put("brand", it.brand).put("port", it.port).put("user", it.user)
+                    .put("password", Secrets.seal(it.password)).put("ms", it.mainScheme).put("mp", it.mainPath).put("ss", it.subScheme).put("sp", it.subPath))
+            }
+            prefs.edit().putString("linked", arr.toString()).apply()
+        }
+
+    fun saveLinkCode(text: String): String? {
+        if (Link.parseCode(text) == null) return "That is not a pairing code. Copy it from Overwatch on your PC (Settings > Watchtower > Phone link)."
+        linkCode = text.trim()
+        return null
+    }
+
+    fun saveWgConf(text: String): String? {
+        val out = Link.rewriteWg(text, "com.cindrix.overwatch")
+            ?: return "That is not a VPN config. On your CindrixVPN server run: sudo ./cindrixvpn-server.sh add-client overwatch-phone, then paste the whole file here."
+        wgConf = out
+        return null
+    }
+
+    var lockMode: LockMode
+        get() = LockMode.of(prefs.getString("lock_mode", "off") ?: "off")
+        set(v) { prefs.edit().putString("lock_mode", v.key).apply() }
+
+    var wtMode: Int
+        get() = if (prefs.getInt("wt_mode", 1) == 4) 4 else 1
+        set(v) { prefs.edit().putInt("wt_mode", v).apply() }
+
+    var wtOne: String
+        get() = prefs.getString("wt_one", "") ?: ""
+        set(v) { prefs.edit().putString("wt_one", v).apply() }
+
+    var wtSlots: List<String>
+        get() = (prefs.getString("wt_slots", "") ?: "").split(",")
+        set(v) { prefs.edit().putString("wt_slots", v.joinToString(",")).apply() }
+
     fun addCamera(name: String, brandId: String, host: String, user: String, password: String, port: String?): String? =
         try { cameras = cameras + Cameras.newCamera(cameraCatalog, name, brandId, host, user, password, port); null } catch (e: CameraError) { e.message }
 

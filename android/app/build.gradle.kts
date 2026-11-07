@@ -14,6 +14,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        // VLC's video engine is large; keep just the two phone families
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     // Signing: a release keystore from GitHub Actions secrets if provided, otherwise the keystore committed in
@@ -78,6 +80,12 @@ dependencies {
     // Google ML Kit: finds the language and translates on the phone. Language packs (about 30 MB each) are downloaded once.
     implementation("com.google.mlkit:translate:17.0.3")
     implementation("com.google.mlkit:language-id:17.0.6")
+
+    // Camera video (VLC's engine, LGPL), the built-in VPN (WireGuard, Apache-2.0), and fingerprint/face/pattern unlock
+    implementation("org.videolan.android:libvlc-all:3.6.0")
+    implementation("com.wireguard.android:tunnel:1.0.20230706")
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
