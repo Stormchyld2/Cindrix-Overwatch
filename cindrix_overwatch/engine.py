@@ -14,13 +14,13 @@ import urllib.request
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor
 
-from . import ai, discover, feeds, geo, scoring, sources, tor
+from . import ai, cameras, discover, feeds, geo, scoring, sources, tor
 from .store import Store
 
 MAX_BYTES = 5_000_000
 KEEP_DAYS = 30
 DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15,
-                    "onion_addresses": {}, "my_outlets": [], "ai_root": "", "ai_enabled": False,
+                    "onion_addresses": {}, "my_outlets": [], "cameras": [], "ai_root": "", "ai_enabled": False,
                     "ai_engine": "", "ai_model": "auto", "auto_translate": True, "ai_pins": True, "ai_focus": True, "ai_instructions": ""}
 
 
@@ -222,6 +222,26 @@ class Controller:
         if 0 <= index < len(self.settings["custom_feeds"]):
             del self.settings["custom_feeds"][index]
             self.save_settings()
+
+    # ----- cameras (set up in Settings > Watchtower; any number) -----
+    def cameras(self):
+        return list(self.settings["cameras"])
+
+    def add_camera(self, name, brand_id, host, user="", password="", port=None, sub_host=""):
+        cam = cameras.new_camera(name, brand_id, host, user, password, port, sub_host)
+        self.settings["cameras"].append(cam)
+        self.save_settings()
+        return cam
+
+    def remove_camera(self, cam_id):
+        self.settings["cameras"] = [c for c in self.settings["cameras"] if c["id"] != cam_id]
+        self.save_settings()
+
+    def set_camera_enabled(self, cam_id, enabled):
+        for c in self.settings["cameras"]:
+            if c["id"] == cam_id:
+                c["enabled"] = bool(enabled)
+        self.save_settings()
 
     def set_source_enabled(self, source_id, enabled):
         dis = set(self.settings["disabled"])

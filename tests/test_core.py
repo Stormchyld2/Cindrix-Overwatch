@@ -1111,3 +1111,45 @@ class OnionChecksums(unittest.TestCase):
             c.set_onion_address("BBC News", "nytimesn7cgmftshazwhfgzm37qxb44r64ytbb2dj3x62d2lljsciiyd.onion")
         finally:
             c.close()
+
+
+class CameraTests(unittest.TestCase):
+    def test_catalog_is_well_formed(self):
+        from cindrix_overwatch import cameras
+        cat = cameras.catalog()
+        self.assertGreaterEqual(len(cat["brands"]), 20)
+        ids = [b["id"] for b in cat["brands"]]
+        self.assertEqual(len(ids), len(set(ids)))
+        for b in cat["brands"]:
+            self.assertIn(b["tier"], cat["tiers"])
+            if b["tier"] == "no":
+                self.assertEqual(b["main"], "")
+
+    def test_build_address_and_credentials(self):
+        from cindrix_overwatch import cameras
+        self.assertEqual(cameras.build_address("reolink", "192.168.1.20", None, "main"), "rtsp://192.168.1.20:554/Preview_01_main")
+        cam = cameras.new_camera("Front", "other", "rtsp://admin:p%40ss@10.0.0.5:554/stream1")
+        self.assertEqual(cam["user"], "admin")
+        self.assertNotIn("p%40ss", cameras.shown_address(cam))
+        self.assertIn("admin", cameras.stream_address(cam))
+
+    def test_bad_input_gives_plain_words(self):
+        from cindrix_overwatch import cameras
+        for args in (("Door", "reolink", ""), ("Cloud", "ring", "10.0.0.2")):
+            with self.assertRaises(ValueError) as cm:
+                cameras.new_camera(*args)
+            self.assertTrue(str(cm.exception))
+
+    def test_controller_add_remove_switch(self):
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        try:
+            c.add_camera("Front door", "reolink", "192.168.1.20", "admin", "pw", None, "")
+            c.add_camera("Garage", "hikvision", "192.168.1.21", "", "", None, "")
+            self.assertEqual(len(c.cameras()), 2)
+            cid = c.cameras()[0]["id"]
+            c.set_camera_enabled(cid, False)
+            self.assertFalse(c.cameras()[0]["enabled"])
+            c.remove_camera(cid)
+            self.assertEqual([x["name"] for x in c.cameras()], ["Garage"])
+        finally:
+            c.close()

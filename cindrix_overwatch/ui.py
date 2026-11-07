@@ -13,7 +13,7 @@ from tkinter import messagebox, ttk
 from . import __version__, ai, geo, sources, theme
 from .engine import Controller
 from .mapview import DEFAULT_LAYERS, WorldMap
-from . import tor as _tor, torbrowser, ui_extra, ui_intel
+from . import tor as _tor, torbrowser, ui_cameras, ui_extra, ui_intel
 from .model import KIND_LABELS, SEVERITY_WORDS, TRUST_LABELS
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
@@ -195,6 +195,7 @@ class App:
             self._render_brief()
         elif key == "settings":
             self._render_sources()
+            ui_cameras.render(self)
             self._render_tor()
             self._render_ai()
 
@@ -926,11 +927,13 @@ class App:
         p.rowconfigure(0, weight=1)
         self.settings_tabs = nb = ttk.Notebook(p)
         nb.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
-        general, feeds_tab, tor_tab, ai_tab = (tk.Frame(nb, bg=theme.CHARCOAL) for _ in range(4))
+        general, feeds_tab, tor_tab, ai_tab, cam_tab = (tk.Frame(nb, bg=theme.CHARCOAL) for _ in range(5))
         nb.add(general, text="  General  ")
         nb.add(feeds_tab, text="  Feeds  ")
         nb.add(tor_tab, text="  Tor  ")
         nb.add(ai_tab, text="  AI  ")
+        nb.add(cam_tab, text="  Watchtower  ")
+        ui_cameras.build_tab(self, cam_tab)
         ui_extra.build_ai_tab(self, ai_tab)
         self._build_sources(feeds_tab)
         ui_extra.build_tor_tab(self, tor_tab)

@@ -141,6 +141,23 @@ def main():
         app._remove_feed(0)
         assert "custom-0" not in app.feed_rows and not c.settings["custom_feeds"]
 
+        # Watchtower settings: add, switch, remove, and the supported-cameras window
+        app.wt_name.set("Front door"); app.wt_host.set("192.168.1.20")
+        from cindrix_overwatch import ui_cameras
+        ui_cameras._add(app, [b for b in __import__("cindrix_overwatch.cameras", fromlist=["x"]).brands() if b["tier"] != "no"])
+        assert len(c.cameras()) == 1 and len(app.wt_rows) == 1, "camera must appear with its own switch"
+        cid = c.cameras()[0]["id"]
+        ui_cameras._flip(app, cid, False)
+        assert c.cameras()[0]["enabled"] is False
+        win = ui_cameras.SupportedWindow(app)
+        win.root_children = len(win.inner.winfo_children())
+        assert win.root_children >= 20, win.root_children
+        win.search.set("reolink")
+        assert len(win.inner.winfo_children()) == 1
+        win.close()
+        ui_cameras._remove(app, cid)
+        assert not c.cameras()
+
         app.root.destroy()
         c.close()
     print("smoke ui OK")
