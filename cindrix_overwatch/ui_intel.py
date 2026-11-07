@@ -8,6 +8,10 @@ from .model import KIND_LABELS, TRUST_LABELS
 from .ui_extra import Worker
 
 LIST_LIMIT = 150
+# What the filters offer. "Near home" is within 1000 km of the home states; the world regions are rough boxes and need a map pin.
+REGION_CHOICES = [("Everywhere", None), ("Near home (1000 km)", "home"), ("Americas", "Americas"), ("Europe", "Europe"),
+                  ("Middle East", "Middle East"), ("Africa", "Africa"), ("Asia-Pacific", "Asia-Pacific")]
+SEVERITY_CHOICES = [("Any severity", 0), ("Notice and up", 1), ("Warning and up", 2), ("Severe only", 3)]
 
 
 class IntelPage:
@@ -17,6 +21,10 @@ class IntelPage:
         self.deploy_only = False
         self.search = tk.StringVar()
         self.search.trace_add("write", lambda *a: self.render_reading())
+        self.region_var = tk.StringVar(value=REGION_CHOICES[0][0])
+        self.sev_var = tk.StringVar(value=SEVERITY_CHOICES[0][0])
+        self.region_var.trace_add("write", lambda *a: self.render())
+        self.sev_var.trace_add("write", lambda *a: self.render())
         self.items, self.item = [], None
         self.mode = "dash"
         parent.columnconfigure(0, weight=1)
@@ -52,6 +60,10 @@ class IntelPage:
                      font=a.f_body, highlightthickness=1, highlightbackground=theme.OUTLINE, highlightcolor=theme.BLUE)
         e.pack(fill="x", padx=12, pady=(10, 4), ipady=5)
         a.label(left, "Search these articles", a.f_small, theme.MUTED).pack(fill="x", padx=14)
+        a.label(left, "Where", a.f_small, theme.MUTED).pack(fill="x", padx=14, pady=(10, 0))
+        ttk.Combobox(left, textvariable=self.region_var, values=[n for n, _ in REGION_CHOICES], state="readonly").pack(fill="x", padx=12, pady=(2, 0))
+        a.label(left, "How serious", a.f_small, theme.MUTED).pack(fill="x", padx=14, pady=(8, 0))
+        ttk.Combobox(left, textvariable=self.sev_var, values=[n for n, _ in SEVERITY_CHOICES], state="readonly").pack(fill="x", padx=12, pady=(2, 0))
         a.btn(left, "\u2190 Dashboard", self.go_dash, small=True, primary=True).pack(fill="x", padx=12, pady=(16, 4))
         a.btn(left, "Open the Brief", lambda: a.show_page("brief"), small=True).pack(fill="x", padx=12, pady=(4, 4))
         self.note = a.label(left, "", a.f_small, theme.MUTED, justify="left", wraplength=200)
@@ -105,6 +117,21 @@ class IntelPage:
         self.pin_note.grid(row=6, column=0, sticky="ew", padx=14, pady=(0, 10))
 
 
+    # ----- filters (shared by the dashboard and the reading view) -----
+    def region(self):
+        return dict(REGION_CHOICES).get(self.region_var.get())
+
+    def min_sev(self):
+        return dict(SEVERITY_CHOICES).get(self.sev_var.get(), 0)
+
+    def _filter_bar(self, parent, bg):
+        a = self.app
+        a.label(parent, "Where", a.f_small, theme.MUTED, bg=bg).pack(side="left", padx=(0, 4))
+        ttk.Combobox(parent, textvariable=self.region_var, values=[n for n, _ in REGION_CHOICES], width=19, state="readonly").pack(side="left", padx=(0, 12))
+        a.label(parent, "How serious", a.f_small, theme.MUTED, bg=bg).pack(side="left", padx=(0, 4))
+        ttk.Combobox(parent, textvariable=self.sev_var, values=[n for n, _ in SEVERITY_CHOICES], width=15, state="readonly").pack(side="left")
+        return a.label(parent, "", a.f_small, theme.MUTED, bg=bg)
+
     # ----- the dashboard -----
     def _build_dash(self, d):
         a = self.app
@@ -125,9 +152,14 @@ class IntelPage:
         body.columnconfigure(0, weight=2, uniform="dash")
         body.columnconfigure(1, weight=1, uniform="dash")
         body.columnconfigure(2, weight=1, uniform="dash")
+        # filters
+        fbar = tk.Frame(body, bg=theme.CHARCOAL)
+        fbar.grid(row=0, column=0, columnspan=3, sticky="ew", padx=14, pady=(10, 0))
+        self.d_filter_note = self._filter_bar(fbar, theme.CHARCOAL)
+        self.d_filter_note.pack(side="left", padx=12)
         # status lights
         strip = tk.Frame(body, bg=theme.CHARCOAL)
-        strip.grid(row=0, column=0, columnspan=3, sticky="ew", padx=10, pady=(10, 6))
+        strip.grid(row=1, column=0, columnspan=3, sticky="ew", padx=10, pady=(8, 6))
         self.d_tiles = []
         for i in range(9):
             strip.columnconfigure(i, weight=1, uniform="dtile")
@@ -143,24 +175,24 @@ class IntelPage:
             note.pack(fill="x", padx=8, pady=(0, 5))
             self.d_tiles.append((bar, name, word, note))
         # Top 10 (left, tall) and the channel panels
-        self.d_top = self._panel(body, "TOP 10 FOR EARLY WARNING", theme.BLUE, 1, 0, rowspan=3, link=("Open the Brief", lambda: a.show_page("brief")))
+        self.d_top = self._panel(body, "TOP 10 FOR EARLY WARNING", theme.BLUE, 2, 0, rowspan=3, link=("Open the Brief", lambda: a.show_page("brief")))
         self.d_panels = {}
-        specs = (("troops", "TROOP MOVEMENTS", theme.AMBER, 1, 1, 2, None),
-                 ("military", "MILITARY", theme.BLUE, 2, 1, 1, "military"),
-                 ("world", "WORLD NEWS", theme.MUTED, 2, 2, 1, "world"),
-                 ("cyber", "CYBER", theme.KIND_COLORS["cyber"], 3, 1, 1, "cyber"),
-                 ("alerts", "ALERTS AND WEATHER", theme.AMBER, 3, 2, 1, "alerts"))
+        specs = (("troops", "TROOP MOVEMENTS", theme.AMBER, 2, 1, 2, None),
+                 ("military", "MILITARY", theme.BLUE, 3, 1, 1, "military"),
+                 ("world", "WORLD NEWS", theme.MUTED, 3, 2, 1, "world"),
+                 ("cyber", "CYBER", theme.KIND_COLORS["cyber"], 4, 1, 1, "cyber"),
+                 ("alerts", "ALERTS AND WEATHER", theme.AMBER, 4, 2, 1, "alerts"))
         for key, title, col, r, c, span, chan in specs:
             if key == "troops":
                 link = ("See all \u2192", lambda: self.go_reading("military", deploy=True))
             else:
                 link = ("See all \u2192", lambda ch=chan: self.go_reading(ch))
             self.d_panels[key] = self._panel(body, title, col, r, c, colspan=span, link=link)
-        for r in (1, 2, 3):
+        for r in (2, 3, 4):
             body.rowconfigure(r, weight=1)
         self.d_foot = a.label(body, "Click a headline to read it. Pin stories that are not on the map, with a click on the map or a typed place.",
                               a.f_small, theme.MUTED)
-        self.d_foot.grid(row=4, column=0, columnspan=3, sticky="w", padx=14, pady=(2, 12))
+        self.d_foot.grid(row=5, column=0, columnspan=3, sticky="w", padx=14, pady=(2, 12))
 
     def _panel(self, parent, title, color, row, col, rowspan=1, colspan=1, link=None):
         a = self.app
@@ -247,19 +279,22 @@ class IntelPage:
             name.configure(text=label.upper())
             word.configure(text=w, fg=col)
             note.configure(text=n)
-        self._dash_rows(self.d_top, c.top_warnings(10), numbered=True)
+        reg, sev = self.region(), self.min_sev()
+        self._dash_rows(self.d_top, c.top_warnings(10, reg, sev), numbered=True)
         self.d_top.count.configure(text="")
         home = c.settings.get("home_states") or []
-        day = c.feed(limit=1000, hours=24)
+        day = c.feed(limit=1000, hours=24, region=reg, min_severity=sev)
         troops = [i for i in day if is_deployment(i)][:5]
         self._dash_rows(self.d_panels["troops"], [(i, []) for i in troops])
         self.d_panels["troops"].count.configure(text=f"{len(troops)} in 24 h")
         for key in ("military", "world", "cyber", "alerts"):
-            items = c.feed(channel=key, limit=1000, hours=48)
+            items = c.feed(channel=key, limit=1000, hours=48, region=reg, min_severity=sev)
             if key == "alerts":     # home alerts first, then the most serious
                 items.sort(key=lambda i: (not is_home(i, home), -i.severity, -i.ts))
             self._dash_rows(self.d_panels[key], [(i, []) for i in items[:5]])
             self.d_panels[key].count.configure(text=str(len(items)))
+        self.d_filter_note.configure(text=("Only stories pinned on the map can be placed in a region; the rest are hidden while a region is chosen."
+                                           if reg else ""))
         self.dash_canvas.yview_moveto(0)
 
     # ----- the list -----
@@ -298,7 +333,7 @@ class IntelPage:
     def render_reading(self):
         a = self.app
         for key, b in self.chan_btns.items():
-            n = len(self.c.feed(channel=key, limit=1000, hours=48))
+            n = len(self.c.feed(channel=key, limit=1000, hours=48, region=self.region(), min_severity=self.min_sev()))
             name = next(nm for k, nm, _ in sources.INTEL_CHANNELS if k == key)
             on = key == self.channel
             b.configure(text=f"{name}   ({n})", bg=theme.BLUE if on else theme.PANEL, fg=theme.ON_BLUE if on else theme.BONE)
@@ -306,7 +341,8 @@ class IntelPage:
                                   fg=theme.ON_BLUE if self.deploy_only else theme.MUTED)
         for w in self.inner.winfo_children():
             w.destroy()
-        self.items = self.c.feed(channel=self.channel, text=self.search.get(), deploy_only=self.deploy_only, limit=LIST_LIMIT, hours=72)
+        self.items = self.c.feed(channel=self.channel, text=self.search.get(), deploy_only=self.deploy_only, limit=LIST_LIMIT, hours=72,
+                            region=self.region(), min_severity=self.min_sev())
         if not self.items:
             a.label(self.inner, "Nothing here yet. Press Refresh now while online.\nSaved items show even offline.", a.f_small,
                     theme.MUTED, justify="left").pack(fill="x", padx=8, pady=12)
@@ -369,7 +405,11 @@ class IntelPage:
         from .ui import ago
         place = f"  \u00b7  {it.place}" if it.place else "  \u00b7  not on the map yet"
         self.r_meta.configure(text=f"{it.source}  \u00b7  {ago(it.ts, self.c.now())}{place}")
-        self._set_text(it.summary or "(This feed sent a headline only. Use \"Read the article here\" to load the page as plain text.)")
+        saved = self.c.read_cached(it.url) if it.url else None
+        if saved:
+            self._set_text("(Saved copy, readable with no internet.)\n\n" + saved)
+        else:
+            self._set_text(it.summary or "(This feed sent a headline only. Use \"Read the article here\" to load the page as plain text.)")
         self.read_btn.configure(state="normal" if it.url else "disabled")
 
     def read_full(self):
@@ -383,15 +423,19 @@ class IntelPage:
             self.read_btn.configure(state="normal")
             if self.item is not it:
                 return
-            if kind == "err":
-                self._set_text(f"Could not load it ({val}). Use Open in browser.")
+            saved = self.c.read_cached(it.url)
+            if kind == "err" or val[0] != 200:
+                why = val if kind == "err" else ("HTTP " + str(val[0]) if val[0] else val[1])
+                if saved:      # no internet or the site is down: the copy saved last time still opens
+                    self._set_text("(Could not reach the site, showing the saved copy.)\n\n" + saved)
+                else:
+                    self._set_text(f"Could not load it ({why}). Use Open in browser.")
                 return
-            status, html = val
-            if status != 200:
-                self._set_text(f"Could not load it ({'HTTP ' + str(status) if status else html}). Use Open in browser.")
-                return
-            title, txt, _ = reader.html_to_text(html, it.url)
-            self._set_text((txt or "(No readable text on this page. Use Open in browser.)")[:60000])
+            title, txt, _ = reader.html_to_text(val[1], it.url)
+            txt = (txt or "")[:60000]
+            if txt:
+                self.c.cache_article(it.url, txt)
+            self._set_text(txt or "(No readable text on this page. Use Open in browser.)")
         Worker(self.app.root, lambda: self.c.read_page(it.url, False), done)
 
     def open_browser(self):

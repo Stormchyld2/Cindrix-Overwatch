@@ -448,3 +448,19 @@ def home_point(states):
     if not pts:
         return None
     return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+
+
+# Rough world regions for the Intel filters. Based on where a story is pinned, so a story that is not on the map has no region.
+REGIONS = ("Americas", "Europe", "Middle East", "Africa", "Asia-Pacific")
+
+
+def region_of(lat, lon):
+    if -170 <= lon <= -30:
+        return "Americas"
+    if 12 <= lat <= 42 and 34 <= lon <= 63:
+        return "Middle East"
+    if lat >= 35 and -25 <= lon <= 45:
+        return "Europe"
+    if -35 <= lat < 35 and -20 <= lon <= 55:
+        return "Africa"
+    return "Asia-Pacific"

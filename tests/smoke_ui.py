@@ -86,6 +86,14 @@ def main():
         assert intel.d_tiles[0][2].cget("text"), "dashboard status lights empty"
         assert intel.d_top.winfo_children(), "Top 10 panel empty"
         assert any(b.winfo_children() for b in intel.d_panels.values()), "channel panels empty"
+        # the where / how serious filters re-draw the dashboard and the list without errors
+        for region, sev in (("Europe", "Any severity"), ("Everywhere", "Warning and up"), ("Near home (1000 km)", "Severe only")):
+            intel.region_var.set(region)
+            intel.sev_var.set(sev)
+            pump(app, 0.1)
+        intel.region_var.set("Everywhere")
+        intel.sev_var.set("Any severity")
+        pump(app, 0.1)
         first = c.top_warnings(10)
         assert first, "no early warning items"
         intel.go_reading(None, first[0][0])

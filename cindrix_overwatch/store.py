@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS health (
 CREATE TABLE IF NOT EXISTS translations (uid TEXT PRIMARY KEY, title_en TEXT, summary_en TEXT, ts REAL);
 CREATE TABLE IF NOT EXISTS ai_pins (uid TEXT PRIMARY KEY, place TEXT, lat REAL, lon REAL, ts REAL);
 CREATE TABLE IF NOT EXISTS user_pins (uid TEXT PRIMARY KEY, place TEXT, lat REAL, lon REAL, ts REAL);
+CREATE TABLE IF NOT EXISTS articles (url TEXT PRIMARY KEY, body TEXT, ts REAL);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 """
 COLS = "uid,source_id,source,kind,trust,title,url,summary,ts,lat,lon,place,severity,states,first_seen,last_seen"
@@ -104,6 +105,17 @@ class Store:
             self.db.execute("DELETE FROM user_pins WHERE uid=?", (uid,))
             self.db.commit()
 
+    # articles read in the reader, kept so they open again with no internet
+    def save_article(self, url, body, now):
+        with self.lock:
+            self.db.execute("INSERT OR REPLACE INTO articles VALUES (?,?,?)", (url, body, now))
+            self.db.commit()
+
+    def article(self, url):
+        with self.lock:
+            r = self.db.execute("SELECT body FROM articles WHERE url=?", (url,)).fetchone()
+            return r[0] if r else None
+
     def tried_ai_pin(self, uid):
         with self.lock:
             return self.db.execute("SELECT 1 FROM ai_pins WHERE uid=?", (uid,)).fetchone() is not None
@@ -126,6 +138,7 @@ class Store:
             self.db.execute("DELETE FROM translations WHERE uid NOT IN (SELECT uid FROM items)")
             self.db.execute("DELETE FROM ai_pins WHERE uid NOT IN (SELECT uid FROM items)")
             self.db.execute("DELETE FROM user_pins WHERE uid NOT IN (SELECT uid FROM items)")
+            self.db.execute("DELETE FROM articles WHERE ts<?", (older_than_ts,))
             self.db.commit()
 
     def clear(self):
@@ -135,6 +148,7 @@ class Store:
             self.db.execute("DELETE FROM ai_pins")
             self.db.execute("DELETE FROM user_pins")
             self.db.execute("DELETE FROM health")
+            self.db.execute("DELETE FROM articles")
             self.db.commit()
 
     # health of each source

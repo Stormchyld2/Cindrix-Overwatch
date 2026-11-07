@@ -995,6 +995,43 @@ class Translation(unittest.TestCase):
         finally:
             c.close()
 
+    def test_regions_and_severity_filter_the_feeds(self):
+        self.assertEqual(geo.region_of(50.45, 30.52), "Europe")          # Kyiv
+        self.assertEqual(geo.region_of(31.77, 35.21), "Middle East")     # Jerusalem
+        self.assertEqual(geo.region_of(38.9, -77.0), "Americas")
+        self.assertEqual(geo.region_of(-1.3, 36.8), "Africa")
+        self.assertEqual(geo.region_of(25.0, 121.5), "Asia-Pacific")
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        try:
+            mk = lambda uid, title, sev, lat=None, lon=None: Item("s" + uid, "S" + uid, "conflict", "wire", title, ts=S.NOW - 60, uid=uid,
+                                                                  severity=sev, lat=lat, lon=lon, place="x" if lat is not None else "")
+            c.store.upsert([mk("a", "Strike in Kyiv", 3, 50.45, 30.52), mk("b", "Raid near Gaza", 1, 31.5, 34.4),
+                            mk("c", "Unrest, no place named", 2), mk("d", "Clashes in Nairobi", 0, -1.3, 36.8)], S.NOW)
+            titles = lambda **kw: sorted(i.title for i in c.feed(**kw))
+            self.assertEqual(len(titles()), 4)
+            self.assertEqual(titles(region="Europe"), ["Strike in Kyiv"])
+            self.assertEqual(titles(region="Middle East"), ["Raid near Gaza"])
+            self.assertNotIn("Unrest, no place named", titles(region="Africa"))   # not on the map: no region
+            self.assertEqual(titles(min_severity=2), ["Strike in Kyiv", "Unrest, no place named"])
+            self.assertEqual(titles(region="Europe", min_severity=3), ["Strike in Kyiv"])
+            self.assertEqual([i.title for i, _ in c.top_warnings(10, region="Africa")], ["Clashes in Nairobi"])
+            self.assertEqual(titles(region="home"), [])         # home is WV/TN: nothing within 1000 km
+        finally:
+            c.close()
+
+    def test_articles_you_read_are_kept_for_offline(self):
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        try:
+            self.assertIsNone(c.read_cached("https://example.org/a"))
+            c.cache_article("https://example.org/a", "The saved text of the story.")
+            self.assertEqual(c.read_cached("https://example.org/a"), "The saved text of the story.")
+            c.cache_article("https://example.org/b", "")           # nothing readable is not kept
+            self.assertIsNone(c.read_cached("https://example.org/b"))
+            c.clear_history() if hasattr(c, "clear_history") else c.store.clear()
+            self.assertIsNone(c.read_cached("https://example.org/a"))
+        finally:
+            c.close()
+
     def test_top_ten_is_ranked_for_early_warning(self):
         mk = lambda uid, src, kind, title, sev=0, trust="wire", age=60, count=1: Item(src, src, kind, trust, title, ts=S.NOW - age, uid=uid,
                                                                                      severity=sev)

@@ -322,9 +322,10 @@ class Controller:
     def all_items(self, hours=72):
         return self.store.items(self.now() - hours * 3600)
 
-    def top_warnings(self, n=10):
-        """The Top 10 for early warning, as (item, reasons), for the Intel dashboard."""
-        return scoring.top_warnings(scoring.group(self.all_items(48)), self.settings["home_states"], self.now(), n=n)
+    def top_warnings(self, n=10, region=None, min_severity=0):
+        """The Top 10 for early warning, as (item, reasons), for the Intel dashboard. Filters apply before the ten are picked."""
+        pool = [i for i in scoring.group(self.all_items(48)) if self.passes(i, region, min_severity)]
+        return scoring.top_warnings(pool, self.settings["home_states"], self.now(), n=n)
 
     # ----- pins the owner places by hand -----
     def pin_item(self, uid, lat, lon, place="Pinned by you"):
@@ -343,7 +344,28 @@ class Controller:
     def unpin_item(self, uid):
         self.store.clear_user_pin(uid)
 
-    def feed(self, kinds=None, home_only=False, text="", hours=72, limit=300, deploy_only=False, channel=None):
+    def passes(self, it, region=None, min_severity=0):
+        """The Intel filters. A region needs a pin, so a story that is not on the map is left out when one is chosen.
+        'home' means within 1000 km of the home states."""
+        if it.severity < min_severity:
+            return False
+        if not region:
+            return True
+        if not it.pinned:
+            return False
+        if region == "home":
+            hp = geo.home_point(self.settings["home_states"])
+            return hp is not None and geo.haversine_km(hp[0], hp[1], it.lat, it.lon) <= 1000
+        return geo.region_of(it.lat, it.lon) == region
+
+    def read_cached(self, url):
+        return self.store.article(url)
+
+    def cache_article(self, url, body):
+        if body:
+            self.store.save_article(url, body, self.now())
+
+    def feed(self, kinds=None, home_only=False, text="", hours=72, limit=300, deploy_only=False, channel=None, region=None, min_severity=0):
         items = scoring.group(self.all_items(hours))
         hs = self.settings["home_states"]
         text = (text or "").strip().lower()
@@ -356,6 +378,8 @@ class Controller:
             if deploy_only and not scoring.is_deployment(it):
                 continue
             if channel and sources.intel_channel(it) != channel:
+                continue
+            if not self.passes(it, region, min_severity):
                 continue
             if text and text not in (it.title + " " + it.title_en + " " + it.summary + " " + it.source + " " + it.place).lower():
                 continue
