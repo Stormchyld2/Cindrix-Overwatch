@@ -222,6 +222,18 @@
       "note": "If this does not connect, look in the camera's manual or web page for its RTSP address and use Other below."
     },
     {
+      "id": "android-phone",
+      "name": "Old Android phone (camera app)",
+      "tier": "some",
+      "port": 8080,
+      "scheme": "rtsp",
+      "main": "/h264_ulaw.sdp",
+      "sub": "",
+      "models": "Any old Android phone running a camera-server app such as IP Webcam (Pavel Khlebovich) or an ONVIF/RTSP camera app from Google Play.",
+      "note": "The app shows its own address on the phone's screen. Type that whole address in the Address box if ours does not work. Paths and ports differ by app and version, and we have not tested any of them. Keep the phone plugged in or on a power bank, and on the same Wi-Fi as this program.",
+      "setup": "Install the app on the phone, give it camera permission, turn on its RTSP or ONVIF option, start the server, and copy the address it shows."
+    },
+    {
       "id": "other",
       "name": "Other: any camera with an RTSP address",
       "tier": "works",
@@ -304,6 +316,27 @@
           {
             "name": "Tapo C120 (ONVIF listed)",
             "note": "Low cost, runs from 5 V USB-C, so a power bank can run it. A good first camera to test with."
+          }
+        ]
+      },
+      {
+        "name": "Old Android phone as a camera",
+        "items": [
+          {
+            "name": "IP Webcam (Android app by Pavel Khlebovich)",
+            "note": "Turns the phone into a camera. Reports say it offers RTSP streams (h264_ulaw.sdp or h264_pcm.sdp) and ONVIF. We could not confirm which options are in the free version. Not tested with Watchtower."
+          },
+          {
+            "name": "Other ONVIF/RTSP camera apps on Google Play",
+            "note": "For example IP Camera: ONVIF RTSP & RTMP & WEB. Pick one that says RTSP or ONVIF. Untested."
+          },
+          {
+            "name": "Keep it powered and cool",
+            "note": "A phone camera running all the time drains the battery fast and gets warm. Use a USB cable to a power bank, and take the battery out of swollen or damaged phones."
+          },
+          {
+            "name": "Our own phone program",
+            "note": "If the apps above do not work well, we can write a small Overwatch camera app for the phone. Not started."
           }
         ]
       },
