@@ -81,7 +81,7 @@ class Engine(
     private val prefs = ctx.getSharedPreferences("overwatch", Context.MODE_PRIVATE)
     private val hostNext = HashMap<String, Long>()
     private val hostLock = Mutex()
-    private val hostGaps = mapOf("api.gdeltproject.org" to 10_000L)
+    private val hostGaps = mapOf("api.gdeltproject.org" to 15_000L)
 
     // ----- settings -----
     var homeStates: List<String>
@@ -179,7 +179,7 @@ class Engine(
             // after GDELT refused us, leave it alone for 16 minutes: the block lasts about 15 and it only clears when not asked
             val minGap = if (it.url.contains("gdeltproject.org")) (if (health[it.id]?.ok == false) 960 else 300) else 0
             it.id !in off && (lastTry == null || now - lastTry >= maxOf(minGap, if (force) 0 else it.everyMinutes * 60))
-        }
+        }.sortedBy { it.url.contains("gdeltproject.org") } // GDELT goes last so the plain feeds never wait behind its spacing
         val gate = Semaphore(6)
         var done = 0
         val results = coroutineScope {
@@ -241,6 +241,21 @@ class Engine(
         }.take(limit)
     }
 
+    // ----- pins the person places by hand -----
+    fun pinItem(uid: String, lat: Double, lon: Double, place: String = "Pinned by you") {
+        if (lat !in -90.0..90.0 || lon !in -180.0..180.0) throw IllegalArgumentException("That place is off the map.")
+        store.setUserPin(uid, place.ifBlank { "Pinned by you" }.take(80), lat, lon, clock())
+    }
+
+    /** Pins a story to a place typed in words, using the built-in place list. Returns the place found, or "" when none matched. */
+    fun pinItemByName(uid: String, text: String): String {
+        val found = geo.findPlace(text.trim()) ?: return ""
+        store.setUserPin(uid, found.name, found.lat, found.lon, clock())
+        return found.name
+    }
+
+    fun unpinItem(uid: String) = store.clearUserPin(uid)
+
     fun indicators(): List<Indicator> = indicators(allItems(24 * 7), homeStates, geo, clock())
 
     fun brief(): String {
@@ -251,7 +266,13 @@ class Engine(
         sb.append(if (prevOpened() > 0) "$n new items since you last looked." else "First time opening: everything is new.")
         sb.append("\n\nStatus lights (based on how much is being reported, not on confirmed facts):\n")
         indicators().forEach { sb.append("  ${it.label}: ${it.word}. ${it.note}\n") }
-        val day = group(allItems(24))
+        sb.append("\nTOP 10 FOR EARLY WARNING (ranked by severity, force movement, home area, agreeing sources, trust and freshness):\n")
+        val tops = topWarnings(group(allItems(48)), homeStates, clock())
+        if (tops.isEmpty()) sb.append("  Nothing saved yet. Refresh while online.\n")
+        tops.forEachIndexed { k, (it, why) ->
+            sb.append("  ${k + 1}. ${it.shown} (${it.source}; ${it.trust.label.lowercase()}${if (why.isNotEmpty()) "; " + why.joinToString(", ") else ""})\n")
+        }
+        val day = group(allItems(24)).filter { it.kind != Kind.CYBER }
         val top = day.sortedWith(compareByDescending<Item> { it.severity }.thenByDescending { it.ts }).take(12)
         sb.append("\nMost serious in the last 24 hours:\n")
         if (top.isEmpty()) sb.append("  Nothing saved yet. Refresh while online.\n")

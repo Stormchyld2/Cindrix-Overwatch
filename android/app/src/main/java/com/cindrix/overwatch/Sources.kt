@@ -36,10 +36,32 @@ val BUILTIN_SOURCES = listOf(
     Src("un", "UN News", "News", Kind.NEWS, Trust.OFFICIAL, "https://news.un.org/feed/subscribe/en/news/all/rss.xml"),
     Src("who", "WHO news", "Health", Kind.HEALTH, Trust.OFFICIAL, "https://www.who.int/rss-feeds/news-english.xml", everyMinutes = 120),
     Src("gdelt-conflict", "GDELT: conflict", "News", Kind.CONFLICT, Trust.OUTLET,
-        gdelt("%28airstrike%20OR%20missile%20OR%20shelling%20OR%20offensive%29"), "gdelt", 30),
+        gdelt("%28airstrike%20OR%20missile%20OR%20shelling%20OR%20offensive%29"), "gdelt", 60),
     Src("gdelt-military", "GDELT: military", "News", Kind.MILITARY, Trust.OUTLET,
-        gdelt("%28navy%20OR%20warship%20OR%20%22air%20force%22%20OR%20troops%20OR%20nato%29"), "gdelt", 30),
+        gdelt("%28navy%20OR%20warship%20OR%20%22air%20force%22%20OR%20troops%20OR%20nato%29"), "gdelt", 60),
+    Src("wotr", "War on the Rocks", "Military", Kind.MILITARY, Trust.OUTLET, "https://warontherocks.com/feed/", everyMinutes = 60),
+    Src("taskpurpose", "Task & Purpose", "Military", Kind.MILITARY, Trust.OUTLET, "https://taskandpurpose.com/feed/"),
+    Src("airspace", "Air & Space Forces Magazine", "Military", Kind.MILITARY, Trust.OUTLET, "https://www.airandspaceforces.com/feed/"),
+    Src("guardian", "The Guardian World", "News", Kind.NEWS, Trust.OUTLET, "https://www.theguardian.com/world/rss"),
+    Src("travel", "State Dept travel advisories", "Conflict", Kind.CONFLICT, Trust.OFFICIAL, "https://travel.state.gov/_res/rss/TAsTWs.xml", everyMinutes = 120),
+    Src("cisa", "CISA cyber advisories", "Cyber", Kind.CYBER, Trust.OFFICIAL, "https://www.cisa.gov/cybersecurity-advisories/all.xml", everyMinutes = 60),
+    Src("bleeping", "BleepingComputer", "Cyber", Kind.CYBER, Trust.OUTLET, "https://www.bleepingcomputer.com/feed/"),
+    Src("krebs", "Krebs on Security", "Cyber", Kind.CYBER, Trust.OUTLET, "https://krebsonsecurity.com/feed/", everyMinutes = 60),
+    Src("thn", "The Hacker News", "Cyber", Kind.CYBER, Trust.OUTLET, "https://feeds.feedburner.com/TheHackersNews"),
 )
+
+/** The four reading channels of the Intel tab, the same as on the PC. */
+data class Channel(val id: String, val label: String, val kinds: Set<Kind>)
+
+val INTEL_CHANNELS = listOf(
+    Channel("military", "Military", setOf(Kind.MILITARY)),
+    Channel("world", "World news", setOf(Kind.NEWS, Kind.CONFLICT)),
+    Channel("cyber", "Cyber", setOf(Kind.CYBER)),
+    Channel("alerts", "Alerts and weather", setOf(Kind.HAZARD, Kind.WEATHER, Kind.SPACE, Kind.HEALTH)),
+)
+
+fun intelChannel(i: Item): String =
+    if (i.sourceId == "travel") "alerts" else INTEL_CHANNELS.first { i.kind in it.kinds }.id
 
 fun nwsSources(states: List<String>) = states.map {
     Src("nws-${it.lowercase()}", "Weather alerts: $it", "Home", Kind.WEATHER, Trust.OFFICIAL,

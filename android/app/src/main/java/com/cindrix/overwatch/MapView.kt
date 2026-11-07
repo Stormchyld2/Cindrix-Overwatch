@@ -93,13 +93,14 @@ class MapCamera {
     fun reset() { scale = minScale(); lon0 = 0f; lat0 = 15f; clamp() }
 }
 
-fun layerOf(k: Kind): Kind = when (k) { Kind.HAZARD, Kind.WEATHER, Kind.SPACE, Kind.HEALTH -> Kind.HAZARD; else -> k }
+fun layerOf(k: Kind): Kind = when (k) { Kind.HAZARD, Kind.SPACE, Kind.HEALTH -> Kind.HAZARD; else -> k }
 
 @Composable
 fun WorldMap(vm: OverwatchViewModel, cam: MapCamera, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val land = remember { loadLand(ctx) }
-    val pins = vm.items.filter { it.pinned && layerOf(it.kind) in vm.layers }
+    val pins = vm.items.filter { vm.onMap(it) }
+    val deploy = remember(pins) { pins.filter { isDeployment(it) }.map { it.uid }.toSet() }
     val sel = vm.selected
     val centre = vm.centerOn
     LaunchedEffect(centre) {
@@ -115,18 +116,24 @@ fun WorldMap(vm: OverwatchViewModel, cam: MapCamera, modifier: Modifier = Modifi
                     cam.pan(pan.x, pan.y)
                 }
             }
-            .pointerInput(pins) {
+            .pointerInput(pins, vm.pinTarget) {
                 detectTapGestures(
                     onTap = { off ->
-                        var best: Item? = null
-                        var bd = 28f * 28f
-                        for (p in pins) {
-                            val dx = cam.x(p.lon!!) - off.x
-                            val dy = cam.y(p.lat!!) - off.y
-                            val d = dx * dx + dy * dy
-                            if (d <= bd) { best = p; bd = d }
+                        if (vm.pinTarget != null) {
+                            val lon = (cam.lon0 + (off.x - cam.w / 2) / cam.scale).toDouble()
+                            val lat = (cam.lat0 - (off.y - cam.h / 2) / cam.scale).toDouble()
+                            vm.placePin(lat.coerceIn(-90.0, 90.0), lon.coerceIn(-180.0, 180.0))
+                        } else {
+                            var best: Item? = null
+                            var bd = 28f * 28f
+                            for (p in pins) {
+                                val dx = cam.x(p.lon!!) - off.x
+                                val dy = cam.y(p.lat!!) - off.y
+                                val d = dx * dx + dy * dy
+                                if (d <= bd) { best = p; bd = d }
+                            }
+                            vm.select(best)
                         }
-                        vm.select(best)
                     },
                     onDoubleTap = { off -> cam.zoomAt(off.x, off.y, 1.8f) },
                 )
@@ -151,7 +158,7 @@ fun WorldMap(vm: OverwatchViewModel, cam: MapCamera, modifier: Modifier = Modifi
             drawPath(path, Ow.Land)
             drawPath(path, Ow.Outline, style = Stroke(width = 1f))
         }
-        for (p in pins) pin(p, cam, sel?.uid == p.uid)
+        for (p in pins) pin(p, cam, sel?.uid == p.uid, p.uid in deploy)
         vm.homePoint?.let { (la, lo) ->
             val c = Offset(cam.x(lo), cam.y(la))
             drawCircle(Ow.Blue, 14f, c, style = Stroke(width = 3f))
@@ -160,12 +167,16 @@ fun WorldMap(vm: OverwatchViewModel, cam: MapCamera, modifier: Modifier = Modifi
     }
 }
 
-private fun DrawScope.pin(it: Item, cam: MapCamera, selected: Boolean) {
+private fun DrawScope.pin(it: Item, cam: MapCamera, selected: Boolean, deploy: Boolean) {
     val c = Offset(cam.x(it.lon!!), cam.y(it.lat!!))
     if (c.x < -20 || c.y < -20 || c.x > size.width + 20 || c.y > size.height + 20) return
     val col = Ow.kindColor(it.kind)
     val r = 9f + it.severity * 2f
-    if (it.kind == Kind.MILITARY) {
+    if (it.mine) {
+        // a square: a pin you placed yourself
+        drawRect(col, Offset(c.x - r, c.y - r), androidx.compose.ui.geometry.Size(r * 2, r * 2))
+        drawRect(Ow.Bone, Offset(c.x - r, c.y - r), androidx.compose.ui.geometry.Size(r * 2, r * 2), style = Stroke(width = 2f))
+    } else if (it.kind == Kind.MILITARY) {
         val d = Path().apply { moveTo(c.x, c.y - r); lineTo(c.x + r, c.y); lineTo(c.x, c.y + r); lineTo(c.x - r, c.y); close() }
         drawPath(d, col)
         drawPath(d, Ow.Charcoal, style = Stroke(width = 2f))
@@ -174,5 +185,7 @@ private fun DrawScope.pin(it: Item, cam: MapCamera, selected: Boolean) {
         drawCircle(col, r, c)
         drawCircle(Ow.Charcoal, r, c, style = Stroke(width = 2f))
     }
+    if (deploy) drawCircle(Ow.Amber, r + 7f, c, style = Stroke(width = 2.5f,
+        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(7f, 5f))))
     if (selected) drawCircle(Ow.Bone, r + 12f, c, style = Stroke(width = 3f))
 }

@@ -13,10 +13,44 @@ private val HAZARD = words("earthquake", "tsunami", "hurricane", "typhoon", "cyc
 private val GRID = words("power outage", "blackout", "power grid", "grid failure", "without power", "power cuts")
 private val SUPPLY = words("shortage", "fuel prices", "food prices", "supply chain", "rationing", "panic buying", "price gouging")
 private val SEVERE = words("nuclear", "invasion", "mass casualt", "explosion", "killed", "dead\\b", "massacre", "chemical")
+/** Words that point to forces being moved, raised or readied. They say what was reported, not what is true. */
+private val DEPLOY = words("deploys?", "deployed", "deploying", "deployment", "mobili[sz]", "reservists?", "call-?up", "build-?up",
+    "troops (?:to|near|along|on)", "sends? (?:troops|forces|warships|ships|jets|aircraft)", "strike group",
+    "carrier group", "amphibious", "moves? (?:forces|troops|warships)", "reinforce", "redeploy", "dispatch",
+    "no-?fly zone", "notam", "naval exercise", "military exercise", "war games", "blockade", "drawdown",
+    "ordered departure", "evacuat", "martial law", "state of emergency", "conscription", "military draft",
+    "draft (?:call|order|notice)", "airlift", "troop rotation", "snap (?:drill|exercise|inspection)", "live-?fire",
+    "scrambl", "heightened alert", "put on alert", "on high alert", "armada",
+    "troop (?:movement|concentration|buildup)", "border (?:closure|closed)", "airspace (?:closed|closure)",
+    "nuclear (?:alert|readiness|drill|exercise)", "missile (?:test|launch)", "readiness")
+
+private val OFF_TOPIC = Regex("\\b(football|soccer|nfl|nba|mlb|nhl|wnba|ncaa|premier league|la liga|bundesliga|serie a|champions league|europa league|" +
+    "tennis|golf|cricket|rugby|formula 1|grand prix|olympics?|wimbledon|super bowl|playoffs?|transfer window|" +
+    "box office|movie|film festival|oscars?|grammys?|emmys?|netflix|album|singer|rapper|actress|actor|celebrity|" +
+    "red carpet|reality tv|fashion week|horoscope|recipe|royal wedding|kardashian|taylor swift)\\b", RegexOption.IGNORE_CASE)
+private val WARNING_WORDS = Regex("\\b(war|troops?|missile|strike|attack|invasion|invade|mobili[sz]|deploy|evacuat|outbreak|" +
+    "earthquake|tsunami|hurricane|blackout|nuclear|sanctions?|ceasefire|military|soldiers?)\\b", RegexOption.IGNORE_CASE)
+
+fun isDeployment(item: Item) = DEPLOY.containsMatchIn(item.title) && item.kind in setOf(Kind.MILITARY, Kind.CONFLICT, Kind.NEWS)
+
+/** Sports and entertainment headlines that carry no warning signal are not early warning. */
+fun offTopic(item: Item): Boolean {
+    if (item.kind != Kind.NEWS || item.severity >= 2 || isDeployment(item)) return false
+    return OFF_TOPIC.containsMatchIn(item.shown) && !WARNING_WORDS.containsMatchIn(item.shown)
+}
+
 private val STOP = ("the and for with from that this have has are was were will after over into about says said new amid more than " +
     "their they its his her who what when where how not but out off one two three").split(" ").toSet()
 
+private val TRAVEL_LEVEL = Regex("Level ([1-4])\\b")
+
 fun classify(it: Item): Item {
+    if (it.sourceId == "travel") {
+        TRAVEL_LEVEL.find(it.title)?.let { m ->
+            it.severity = when (m.groupValues[1]) { "4" -> 3; "3" -> 2; "2" -> 1; else -> 0 }
+        }
+        return it
+    }
     if (it.kind != Kind.NEWS) return it
     val t = it.title
     when {
@@ -119,8 +153,54 @@ fun indicators(items: List<Item>, home: List<String>, geo: Gazetteer, now: Doubl
     val mlv = level(ml.size, 5, 15, 30)
     out += Indicator("military", "Military activity", mlv, listOf("QUIET", "ACTIVE", "BUSY", "HIGH")[mlv], "${ml.size} items, 24 h")
 
+    val dp = group(day.filter { isDeployment(it) })
+    val dl = level(dp.size, 3, 8, 16)
+    out += Indicator("deploy", "Force movements", dl, listOf("QUIET", "WATCH", "ELEVATED", "HIGH")[dl],
+        if (dp.isNotEmpty()) "${dp.size} deployment or readiness stories, 24 h" else "No deployment signals")
+
     val sup = two.filter { SUPPLY.containsMatchIn(it.title) }
     val sul = level(sup.size, 2, 5, 10)
     out += Indicator("supply", "Supply news", sul, std[sul], if (sup.isNotEmpty()) "${sup.size} headlines, 48 h" else "Nothing unusual")
+    return out
+}
+
+private fun kindWeight(k: Kind) = when (k) { Kind.MILITARY, Kind.CONFLICT -> 1.5; Kind.HAZARD, Kind.HEALTH, Kind.WEATHER -> 1.0; Kind.SPACE -> 0.5; else -> 0.0 }
+private fun trustWeight(t: Trust) = when (t) { Trust.OFFICIAL -> 1.5; Trust.WIRE -> 1.0; else -> 0.0 }
+
+/** How much an item matters for early warning of a long emergency. Plain arithmetic, no AI: severity, force movements, the home area,
+ *  how many sources agree, how far the source can be trusted, and how fresh it is. */
+fun warningScore(item: Item, home: List<String>, now: Double): Double {
+    var s = item.severity * 3.0
+    if (isDeployment(item)) s += 4
+    if (isHome(item, home)) s += 3
+    s += trustWeight(item.trust) + minOf(maxOf(item.count - 1, 0), 4) * 1.5 + kindWeight(item.kind)
+    s += maxOf(0.0, 2.0 - maxOf(0.0, now - item.ts) / 3600 / 12)
+    return s
+}
+
+/** Short plain reasons an item is near the top. */
+fun whyItMatters(item: Item, home: List<String>): List<String> {
+    val out = mutableListOf<String>()
+    if (item.severity >= 2) out += if (item.severity == 3) "severe" else "warning"
+    if (isDeployment(item)) out += "force movement"
+    if (isHome(item, home)) out += "home area"
+    if (item.count > 1) out += "${item.count} sources"
+    if (item.trust == Trust.OFFICIAL) out += "official source"
+    return out
+}
+
+/** The n items most relevant for early warning, best first. Sports, entertainment, cyber stories and anything older than two days are
+ *  left out, and no one source can fill the list. */
+fun topWarnings(items: List<Item>, home: List<String>, now: Double, n: Int = 10, perSource: Int = 3): List<Pair<Item, List<String>>> {
+    val pool = items.filter { it.kind != Kind.CYBER && now - it.ts <= 48 * 3600 && !offTopic(it) }
+        .sortedWith(compareByDescending<Item> { warningScore(it, home, now) }.thenByDescending { it.ts })
+    val out = mutableListOf<Pair<Item, List<String>>>()
+    val taken = HashMap<String, Int>()
+    for (it in pool) {
+        if ((taken[it.sourceId] ?: 0) >= perSource) continue
+        taken[it.sourceId] = (taken[it.sourceId] ?: 0) + 1
+        out += it to whyItMatters(it, home)
+        if (out.size >= n) break
+    }
     return out
 }

@@ -4,7 +4,7 @@ import java.security.MessageDigest
 
 enum class Kind(val label: String) {
     MILITARY("MILITARY"), CONFLICT("CONFLICT"), HAZARD("HAZARD"), WEATHER("WEATHER"),
-    SPACE("SPACE"), HEALTH("HEALTH"), NEWS("NEWS");
+    SPACE("SPACE"), HEALTH("HEALTH"), NEWS("NEWS"), CYBER("CYBER");
 
     companion object {
         fun of(s: String): Kind = entries.firstOrNull { it.name.equals(s, ignoreCase = true) } ?: NEWS
@@ -45,8 +45,11 @@ class Item(
     var firstSeen: Double = 0.0
     var titleEn: String = ""
     var summaryEn: String = ""
+    /** True when the person placed this pin by hand (it wins over every automatic pin). */
+    var mine: Boolean = false
     /** The English title when one was made, else the original. */
     val shown: String get() = titleEn.ifEmpty { title }
+    val shownSummary: String get() = summaryEn.ifEmpty { summary }
     val uid: String = uid.ifEmpty { sha1("$sourceId|${url.ifEmpty { this.title }}").take(20) }
     val pinned: Boolean get() = lat != null && lon != null
 }

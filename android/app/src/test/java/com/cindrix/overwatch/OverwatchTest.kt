@@ -101,7 +101,7 @@ class OverwatchTest {
         val items = feeds.nws(src("nws-wv", Kind.WEATHER, "nws"), nws, NOW)
         val ind = indicators(items, listOf("WV"), geo, NOW).associateBy { it.id }
         assertEquals("ADVISORY", ind["weather"]!!.word)
-        assertEquals(8, ind.size)
+        assertEquals(9, ind.size)
         assertTrue(indicators(emptyList(), listOf("WV"), geo, NOW).all { it.level == 0 })
     }
 
@@ -184,5 +184,75 @@ class OverwatchTest {
         assertEquals("Gaza City", geo.findPlace("Strike in Gaza City overnight")!!.name)
         assertEquals("Washington DC", geo.findPlace("Washington DC")!!.name)
         assertEquals("Ukraine", geo.findPlace("Ukraine")!!.name)
+    }
+
+    private fun item(title: String, kind: Kind = Kind.NEWS, sev: Int = 0, src: String = "a", trust: Trust = Trust.WIRE, ts: Double = NOW - 3600, states: List<String> = emptyList()) =
+        Item(src, src, kind, trust, title, "https://example.org/" + title.hashCode(), "", ts, severity = sev, states = states)
+
+    @Test fun deploymentWordsAreSpotted() {
+        assertTrue(isDeployment(item("US sends warships to the Red Sea", Kind.MILITARY)))
+        assertTrue(isDeployment(item("Russia mobilises reservists near the border")))
+        assertFalse(isDeployment(item("Navy band plays at ceremony", Kind.MILITARY)))
+        assertFalse(isDeployment(item("New phishing kit sold online", Kind.CYBER)))
+    }
+
+    @Test fun intelChannelsCoverEveryKind() {
+        for (k in Kind.entries) assertTrue(INTEL_CHANNELS.any { k in it.kinds })
+        assertEquals("cyber", intelChannel(item("x", Kind.CYBER)))
+        assertEquals("military", intelChannel(item("x", Kind.MILITARY)))
+        assertEquals("world", intelChannel(item("x", Kind.CONFLICT)))
+        assertEquals("alerts", intelChannel(item("x", Kind.SPACE)))
+        assertEquals("alerts", intelChannel(item("Level 3: Reconsider travel", Kind.CONFLICT, src = "travel")))
+    }
+
+    @Test fun newFeedsAreInTheListAndGdeltIsHourly() {
+        val ids = BUILTIN_SOURCES.map { it.id }.toSet()
+        for (id in listOf("wotr", "taskpurpose", "airspace", "guardian", "travel", "cisa", "bleeping", "krebs", "thn")) assertTrue(id, id in ids)
+        assertEquals(ids.size, BUILTIN_SOURCES.size)
+        assertTrue(BUILTIN_SOURCES.filter { it.parser == "gdelt" }.all { it.everyMinutes == 60 })
+        assertTrue(BUILTIN_SOURCES.filter { it.group == "Cyber" }.all { it.kind == Kind.CYBER })
+    }
+
+    @Test fun travelAdvisoryLevelSetsSeverity() {
+        assertEquals(3, classify(item("Level 4: Do not travel to X", Kind.CONFLICT, src = "travel")).severity)
+        assertEquals(1, classify(item("Level 2: Exercise increased caution in Y", Kind.CONFLICT, src = "travel")).severity)
+    }
+
+    @Test fun topTenRanksWarningsAndDropsNoise() {
+        val items = listOf(
+            item("Carrier strike group deployed near Taiwan Strait", Kind.MILITARY, 2, "dvids", Trust.OFFICIAL),
+            item("Local team wins football final", Kind.NEWS, 0, "bbc"),
+            item("Ransomware hits hospital chain", Kind.CYBER, 3, "cisa", Trust.OFFICIAL),
+            item("Old story about troops", Kind.CONFLICT, 3, "un", ts = NOW - 5 * 86400),
+            item("Flooding warning for county", Kind.WEATHER, 2, "nws-wv", Trust.OFFICIAL, states = listOf("WV")),
+            item("Celebrity singer announces album", Kind.NEWS, 0, "npr"),
+        )
+        val top = topWarnings(items, listOf("WV"), NOW)
+        val titles = top.map { it.first.title }
+        assertFalse(titles.any { it.contains("football") || it.contains("Ransomware") || it.contains("Old story") || it.contains("singer") })
+        assertEquals("Carrier strike group deployed near Taiwan Strait", titles.first())
+        assertTrue(top.first().second.contains("force movement"))
+        assertTrue(top.any { it.second.contains("home area") })
+    }
+
+    @Test fun oneSourceCannotFillTheTopTen() {
+        val items = (1..8).map { item("Missile attack number $it on city $it", Kind.CONFLICT, 3, "same") }
+        assertEquals(3, topWarnings(items, emptyList(), NOW).size)
+        assertEquals(10, topWarnings((1..30).map { item("Attack on town $it killed people", Kind.CONFLICT, 2, "s${it % 12}") }, emptyList(), NOW).size)
+    }
+
+    @Test fun htmlBecomesReadableText() {
+        val html = "<html><head><script>var x=1;</script><style>p{}</style></head><body><nav>Menu Home About</nav>" +
+            "<p>The first paragraph of the story is long enough to keep, and it says &amp; things.</p>" +
+            "<p>The second paragraph also has enough words to be kept as real article text here.</p>" +
+            "<p>The third paragraph with a &quot;quote&quot; and more detail for readers to read.</p><footer>Copyright</footer></body></html>"
+        val text = htmlToText(html)
+        assertTrue(text.contains("says & things"))
+        assertTrue(text.contains("\"quote\""))
+        assertFalse(text.contains("var x"))
+        assertFalse(text.contains("Menu Home"))
+        assertFalse(text.contains("Copyright"))
+        assertEquals(3, text.split("\n\n").size)
+        assertTrue(htmlToText("<p>" + "word ".repeat(10000) + "</p>", 500).length <= 500)
     }
 }

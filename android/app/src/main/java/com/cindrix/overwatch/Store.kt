@@ -8,7 +8,7 @@ import android.database.sqlite.SQLiteOpenHelper
 data class Health(val ok: Boolean, val lastOk: Double?, val lastTry: Double, val count: Int, val error: String)
 
 /** Local history in one SQLite file. This is what keeps working when the internet does not. */
-class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 2) {
+class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE items (uid TEXT PRIMARY KEY, source_id TEXT, source TEXT, kind TEXT, trust TEXT, title TEXT, " +
             "url TEXT, summary TEXT, ts REAL, lat REAL, lon REAL, place TEXT, severity INTEGER, states TEXT, first_seen REAL, last_seen REAL)")
@@ -16,6 +16,11 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 2) {
         db.execSQL("CREATE TABLE health (source_id TEXT PRIMARY KEY, ok INTEGER, last_ok REAL, last_try REAL, count INTEGER, error TEXT)")
         db.execSQL("CREATE TABLE meta (k TEXT PRIMARY KEY, v TEXT)")
         addAiTables(db)
+        addUserPinTable(db)
+    }
+
+    private fun addUserPinTable(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS user_pins (uid TEXT PRIMARY KEY, place TEXT, lat REAL, lon REAL, ts REAL)")
     }
 
     private fun addAiTables(db: SQLiteDatabase) {
@@ -25,6 +30,7 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 2) {
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) addAiTables(db)
+        if (oldVersion < 3) addUserPinTable(db)
     }
 
     // Translations and AI-named places live in their own tables so the original story is never touched.
@@ -48,6 +54,16 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 2) {
     @Synchronized
     fun triedAiPin(uid: String): Boolean =
         readableDatabase.rawQuery("SELECT 1 FROM ai_pins WHERE uid=?", arrayOf(uid)).use { it.moveToFirst() }
+
+    /** A pin the person placed by hand. It is kept in its own table so the story is never touched, and it wins over every automatic pin. */
+    @Synchronized
+    fun setUserPin(uid: String, place: String, lat: Double, lon: Double, now: Double) {
+        val cv = ContentValues().apply { put("uid", uid); put("place", place); put("lat", lat); put("lon", lon); put("ts", now) }
+        writableDatabase.insertWithOnConflict("user_pins", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    @Synchronized
+    fun clearUserPin(uid: String) { writableDatabase.delete("user_pins", "uid=?", arrayOf(uid)) }
 
     /** Adds items; one seen before keeps its first_seen. Returns how many were new. */
     @Synchronized
@@ -100,10 +116,16 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 2) {
         readableDatabase.rawQuery("SELECT uid,place,lat,lon FROM ai_pins WHERE lat IS NOT NULL", null).use { c ->
             while (c.moveToNext()) pins[c.getString(0)] = Triple(c.getString(1) ?: "", c.getDouble(2), c.getDouble(3))
         }
+        val mine = HashMap<String, Triple<String, Double, Double>>()
+        readableDatabase.rawQuery("SELECT uid,place,lat,lon FROM user_pins", null).use { c ->
+            while (c.moveToNext()) mine[c.getString(0)] = Triple(c.getString(1) ?: "", c.getDouble(2), c.getDouble(3))
+        }
         for (it in out) {
+            val m = mine[it.uid]
+            if (m != null) { it.place = m.first; it.lat = m.second; it.lon = m.third; it.mine = true }
             // a place the model named for a story the built-in list could not place (never overrides a real pin)
             val p = pins[it.uid]
-            if (it.lat == null && p != null) { it.place = p.first + " (placed by AI)"; it.lat = p.second; it.lon = p.third }
+            if (!it.mine && it.lat == null && p != null) { it.place = p.first + " (placed by AI)"; it.lat = p.second; it.lon = p.third }
             tr[it.uid]?.let { t -> it.titleEn = t.first; it.summaryEn = t.second }
         }
         return out
@@ -122,6 +144,7 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 2) {
         db.delete("items", "ts<? AND first_seen<?", arrayOf(olderThan.toString(), olderThan.toString()))
         db.execSQL("DELETE FROM translations WHERE uid NOT IN (SELECT uid FROM items)")
         db.execSQL("DELETE FROM ai_pins WHERE uid NOT IN (SELECT uid FROM items)")
+        db.execSQL("DELETE FROM user_pins WHERE uid NOT IN (SELECT uid FROM items)")
     }
 
     @Synchronized
@@ -129,6 +152,7 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 2) {
         writableDatabase.delete("items", null, null)
         writableDatabase.delete("translations", null, null)
         writableDatabase.delete("ai_pins", null, null)
+        writableDatabase.delete("user_pins", null, null)
         writableDatabase.delete("health", null, null)
     }
 

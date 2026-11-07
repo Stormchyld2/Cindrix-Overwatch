@@ -28,7 +28,7 @@ object Ow {
         Kind.CONFLICT -> Red
         Kind.HAZARD, Kind.WEATHER, Kind.SPACE -> Amber
         Kind.HEALTH -> Orange
-        Kind.NEWS -> Muted
+        Kind.NEWS, Kind.CYBER -> Muted
     }
 }
 

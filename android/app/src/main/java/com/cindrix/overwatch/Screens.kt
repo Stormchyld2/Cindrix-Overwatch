@@ -78,15 +78,16 @@ fun OverwatchApp(vm: OverwatchViewModel) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (vm.tab) {
                 0 -> MapScreen(vm, cam)
-                1 -> FeedScreen(vm)
-                2 -> BriefScreen(vm)
-                3 -> SourcesScreen(vm)
+                1 -> IntelScreen(vm)
+                2 -> FeedScreen(vm)
+                3 -> BriefScreen(vm)
+                4 -> SourcesScreen(vm)
                 else -> SettingsScreen(vm)
             }
         }
         NavigationBar(containerColor = Ow.Panel) {
-            listOf("Map", "Feed", "Brief", "Sources", "Settings").forEachIndexed { i, label ->
-                NavigationBarItem(selected = vm.tab == i, onClick = { vm.tab = i }, icon = {}, label = { Text(label, fontSize = 13.sp) },
+            listOf("Map", "Intel", "Feed", "Brief", "Sources", "Settings").forEachIndexed { i, label ->
+                NavigationBarItem(selected = vm.tab == i, onClick = { vm.tab = i }, icon = {}, label = { Text(label, fontSize = 11.sp, maxLines = 1) },
                     alwaysShowLabel = true)
             }
         }
@@ -138,8 +139,17 @@ fun MapScreen(vm: OverwatchViewModel, cam: MapCamera) {
             items(vm.indicators) { IndicatorTile(it) }
         }
         LazyRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(listOf(Kind.MILITARY to "Military", Kind.CONFLICT to "Conflict", Kind.HAZARD to "Hazards", Kind.NEWS to "News")) { (k, label) ->
+            items(listOf(Kind.MILITARY to "Military", Kind.CONFLICT to "Conflict", Kind.HAZARD to "Hazards", Kind.WEATHER to "Weather", Kind.NEWS to "News")) { (k, label) ->
                 FilterChip(selected = k in vm.layers, onClick = { vm.toggleLayer(k) }, label = { Text(label) })
+            }
+            item { FilterChip(selected = vm.deployOn, onClick = { vm.deployOn = !vm.deployOn }, label = { Text("Troop movements") }) }
+            item { FilterChip(selected = vm.mineOn, onClick = { vm.mineOn = !vm.mineOn }, label = { Text("My pins") }) }
+        }
+        vm.pinTarget?.let { t ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).clip(RoundedCornerShape(10.dp)).background(Ow.Blue).padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Tap the map to place: " + t.shown.take(70), fontSize = 12.sp, color = Ow.OnBlue, modifier = Modifier.weight(1f), maxLines = 2)
+                TextButton(onClick = { vm.cancelPin() }) { Text("Cancel", color = Ow.OnBlue) }
             }
         }
         Box(Modifier.weight(1f).fillMaxWidth().padding(8.dp).clip(RoundedCornerShape(12.dp))) {
@@ -175,7 +185,109 @@ fun SelectedCard(vm: OverwatchViewModel) {
             val more = if (it.count > 1) "  ·  ${it.count} sources" else ""
             val place = if (it.place.isNotEmpty()) "  ·  ${it.place}" else ""
             Text("${it.source}  ·  ${it.trust.label}$more$place  ·  ${ago(it.ts, nowSeconds())}", fontSize = 11.sp, color = Ow.Muted)
-            if (it.url.isNotEmpty()) TextButton(onClick = { openUrl(ctx, it.url) }) { Text("Open page") }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (it.url.isNotEmpty()) TextButton(onClick = { vm.openReader(it) }) { Text("Read here") }
+                if (it.url.isNotEmpty()) TextButton(onClick = { openUrl(ctx, it.url) }) { Text("Open page") }
+                TextButton(onClick = { vm.startPin(it) }) { Text(if (it.mine) "Move pin" else if (it.pinned) "Re-pin" else "Pin it") }
+                if (it.mine) TextButton(onClick = { vm.removePin(it) }) { Text("Remove pin") }
+            }
+            if (vm.pinNote.isNotEmpty()) Text(vm.pinNote, fontSize = 11.sp, color = Ow.Muted)
+        }
+    }
+}
+
+@Composable
+fun IntelScreen(vm: OverwatchViewModel) {
+    val reading = vm.reader
+    if (reading != null) { ReaderView(vm, reading); return }
+    val ctx = LocalContext.current
+    val list = vm.intelList()
+    Column(Modifier.fillMaxSize()) {
+        LazyRow(Modifier.padding(top = 8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(INTEL_CHANNELS) { c ->
+                FilterChip(selected = vm.channel == c.id, onClick = { vm.channel = c.id }, label = { Text("${c.label} (${vm.channelCount(c.id)})") })
+            }
+            item { FilterChip(selected = vm.troopsOnly, onClick = { vm.troopsOnly = !vm.troopsOnly }, label = { Text("Troop movements only") }) }
+        }
+        OutlinedTextField(vm.intelSearch, { vm.intelSearch = it }, Modifier.fillMaxWidth().padding(8.dp), singleLine = true, placeholder = { Text("Search this channel") })
+        if (list.isEmpty()) {
+            Text(if (vm.items.isEmpty()) "Nothing here yet. Tap Refresh while online. Saved items show even offline." else "Nothing in this channel right now.",
+                color = Ow.Muted, modifier = Modifier.padding(16.dp))
+        }
+        LazyColumn(Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(list, key = { it.uid }) { item -> IntelCard(vm, item) { openUrl(ctx, item.url) } }
+        }
+    }
+}
+
+@Composable
+fun IntelCard(vm: OverwatchViewModel, item: Item, onOpen: () -> Unit) {
+    val col = Ow.kindColor(item.kind)
+    val isNew = vm.prevOpen > 0 && item.firstSeen > vm.prevOpen
+    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).clip(RoundedCornerShape(10.dp)).background(Ow.PanelHigh)) {
+        Box(Modifier.width(4.dp).fillMaxHeight().background(col))
+        Column(Modifier.padding(10.dp).weight(1f)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(item.kind.label, fontSize = 11.sp, color = col)
+                if (isNew) Text("NEW", fontSize = 11.sp, color = Ow.Blue)
+                if (isHome(item, vm.home)) Text("HOME", fontSize = 11.sp, color = Ow.Blue)
+                if (isDeployment(item)) Text("TROOPS", fontSize = 11.sp, color = Ow.Amber)
+                if (item.mine) Text("MY PIN", fontSize = 11.sp, color = Ow.Blue)
+            }
+            Text(item.shown, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.clickable { vm.openReader(item) })
+            if (item.shownSummary.isNotEmpty() && item.shownSummary != item.shown) Text(item.shownSummary, fontSize = 12.sp, maxLines = 3, color = Ow.Bone)
+            Text("${item.source}  ·  ${item.trust.label}" + (if (item.count > 1) ", ${item.count} sources" else "") + "  ·  ${ago(item.ts, nowSeconds())}",
+                fontSize = 11.sp, color = Ow.Muted)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { vm.openReader(item) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)) { Text("Read", fontSize = 12.sp) }
+                if (item.pinned) TextButton(onClick = { vm.select(item, centre = true) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)) { Text("Show on map", fontSize = 12.sp) }
+                else TextButton(onClick = { vm.startPin(item) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)) { Text("Pin it", fontSize = 12.sp) }
+                if (item.url.isNotEmpty()) TextButton(onClick = onOpen, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)) { Text("Browser", fontSize = 12.sp) }
+            }
+        }
+    }
+}
+
+@Composable
+fun ReaderView(vm: OverwatchViewModel, item: Item) {
+    val ctx = LocalContext.current
+    var place by remember(item.uid) { mutableStateOf("") }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = { vm.closeReader() }) { Text("← Back to the list") }
+        Text(item.kind.label + "  ·  " + SEVERITY_WORDS[item.severity], fontSize = 11.sp, color = Ow.kindColor(item.kind))
+        Text(item.shown, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        if (item.titleEn.isNotEmpty()) Text("Translated by AI. Original: " + item.title, fontSize = 11.sp, color = Ow.Muted)
+        Text("${item.source}  ·  ${item.trust.label}" + (if (item.count > 1) ", ${item.count} sources" else "") + "  ·  ${ago(item.ts, nowSeconds())}" +
+            (if (item.place.isNotEmpty()) "  ·  ${item.place}" else ""), fontSize = 12.sp, color = Ow.Muted)
+        if (item.shownSummary.isNotEmpty() && item.shownSummary != item.shown) Text(item.shownSummary, fontSize = 14.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (item.url.isNotEmpty()) Button(onClick = { vm.readArticle() }, shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Read the article here") }
+            if (item.url.isNotEmpty()) Button(onClick = { openUrl(ctx, item.url) }, shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Open in browser") }
+        }
+        if (vm.readerNote.isNotEmpty()) Text(vm.readerNote, fontSize = 12.sp, color = Ow.Muted)
+        if (vm.readerText.isNotEmpty()) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp)) { Text(vm.readerText, fontSize = 14.sp) }
+        }
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Map pin", fontWeight = FontWeight.SemiBold)
+            Text(if (item.pinned) "Pinned: ${item.place}" else "Not on the map.", fontSize = 12.sp, color = Ow.Muted)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (item.pinned) Button(onClick = { vm.select(item, centre = true) }, shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Show on map") }
+                Button(onClick = { vm.startPin(item) }, shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text(if (item.pinned) "Move pin (tap map)" else "Pin it (tap map)") }
+            }
+            OutlinedTextField(place, { place = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Or type a place, like Taipei or Black Sea") })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { vm.pinByName(item, place) }, enabled = place.isNotBlank(), shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Pin to that place") }
+                if (item.mine) Button(onClick = { vm.removePin(item) }, shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Remove my pin") }
+            }
+            if (vm.pinNote.isNotEmpty()) Text(vm.pinNote, fontSize = 12.sp, color = Ow.Muted)
         }
     }
 }

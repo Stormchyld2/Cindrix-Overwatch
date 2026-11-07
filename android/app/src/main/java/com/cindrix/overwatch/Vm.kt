@@ -33,7 +33,18 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     var progress by mutableStateOf("")
     var selected by mutableStateOf<Item?>(null)
     var centerOn by mutableStateOf<Item?>(null)
-    var layers by mutableStateOf(setOf(Kind.MILITARY, Kind.CONFLICT, Kind.HAZARD, Kind.NEWS))
+    var layers by mutableStateOf(setOf(Kind.MILITARY, Kind.CONFLICT, Kind.HAZARD, Kind.WEATHER, Kind.NEWS))
+    var deployOn by mutableStateOf(true)
+    var mineOn by mutableStateOf(true)
+    var channel by mutableStateOf("military")
+    var troopsOnly by mutableStateOf(false)
+    var intelSearch by mutableStateOf("")
+    /** The story waiting for a tap on the map to be pinned. */
+    var pinTarget by mutableStateOf<Item?>(null)
+    var reader by mutableStateOf<Item?>(null)
+    var readerText by mutableStateOf("")
+    var readerNote by mutableStateOf("")
+    var pinNote by mutableStateOf("")
     var filter by mutableStateOf(FeedFilter.ALL)
     var search by mutableStateOf("")
     var brief by mutableStateOf("")
@@ -57,7 +68,7 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     suspend fun reload() = withContext(Dispatchers.IO) {
-        val feedItems = engine.feed(limit = 400)
+        val feedItems = engine.feed(limit = 700)
         val ind = engine.indicators()
         val src = engine.status()
         val n = engine.newSinceLast()
@@ -129,6 +140,80 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
         if (centre && item != null && item.pinned) {
             centerOn = item
             tab = 0
+        }
+    }
+
+    /** Whether a pinned story is drawn on the map under the current buttons. */
+    fun onMap(it: Item): Boolean =
+        it.pinned && (layerOf(it.kind) in layers || (deployOn && isDeployment(it)) || (mineOn && it.mine))
+
+    fun intelList(): List<Item> {
+        val q = intelSearch.trim().lowercase()
+        return items.filter {
+            intelChannel(it) == channel && (!troopsOnly || isDeployment(it)) &&
+                (q.isEmpty() || (it.title + " " + it.summary + " " + it.source + " " + it.place).lowercase().contains(q))
+        }.take(200)
+    }
+
+    fun channelCount(id: String): Int = items.count { intelChannel(it) == id }
+
+    fun openReader(item: Item) {
+        reader = item; readerText = ""; readerNote = ""; pinNote = ""
+        selected = item
+        tab = 1
+    }
+
+    fun closeReader() { reader = null; readerText = ""; readerNote = ""; pinNote = "" }
+
+    /** Fetches the article page and shows it as plain text. Only https pages; nothing is saved. */
+    fun readArticle() {
+        val item = reader ?: return
+        readerNote = "Loading the article..."
+        viewModelScope.launch {
+            val (code, body) = withContext(Dispatchers.IO) { httpFetch(item.url) }
+            if (reader?.uid != item.uid) return@launch
+            if (code != 200) { readerNote = "Could not load the page here" + (if (code != 0) " (HTTP $code)" else "") + ". Use Open in browser instead."; return@launch }
+            val text = htmlToText(body)
+            if (text.isBlank()) readerNote = "This page has no text Overwatch can show (it may need a browser). Use Open in browser instead."
+            else { readerText = text; readerNote = "" }
+        }
+    }
+
+    /** Next tap on the map pins this story. */
+    fun startPin(item: Item) {
+        pinTarget = item; pinNote = ""; tab = 0
+    }
+
+    fun cancelPin() { pinTarget = null }
+
+    fun placePin(lat: Double, lon: Double) {
+        val item = pinTarget ?: return
+        pinTarget = null
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try { engine.pinItem(item.uid, lat, lon, "Pinned by you (%.2f, %.2f)".format(lat, lon)); true } catch (e: IllegalArgumentException) { false }
+            }
+            pinNote = if (ok) "Pinned." else "That spot is off the map."
+            reload()
+            items.firstOrNull { it.uid == item.uid }?.let { selected = it; if (reader?.uid == it.uid) reader = it }
+        }
+    }
+
+    fun pinByName(item: Item, text: String) {
+        viewModelScope.launch {
+            val place = withContext(Dispatchers.IO) { engine.pinItemByName(item.uid, text) }
+            pinNote = if (place.isEmpty()) "Overwatch does not know that place. Try a city, country or sea name, or tap the map instead." else "Pinned to $place."
+            reload()
+            items.firstOrNull { it.uid == item.uid }?.let { selected = it; if (reader?.uid == it.uid) reader = it }
+        }
+    }
+
+    fun removePin(item: Item) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { engine.unpinItem(item.uid) }
+            pinNote = "Your pin was removed."
+            reload()
+            items.firstOrNull { it.uid == item.uid }?.let { selected = it; if (reader?.uid == it.uid) reader = it }
         }
     }
 
