@@ -931,6 +931,12 @@ class Translation(unittest.TestCase):
             srv.close()
             c.close()
 
+    def test_cities_pin_to_the_city_not_the_country(self):
+        self.assertAlmostEqual(geo.find_place("Kharkiv")[1], 49.99)
+        self.assertAlmostEqual(geo.find_place("Seoul")[1], 37.57)
+        self.assertEqual(geo.find_place("Strike in Gaza City overnight")[0], "Gaza City")
+        self.assertEqual(geo.find_place("Ukraine")[0], "Ukraine")
+
     def test_auto_translate_only_foreign_and_not_twice(self):
         c, srv = self.make("Russia orders mobilization of reservists on the border")
         try:

@@ -761,7 +761,8 @@ class AiService:
                 found = None
                 if n in named and names_place(it.shown, named[n]):
                     # "City, Country": look for the most specific part first, or the country would win by length
-                    found = geo.find_place(named[n].split(",")[0]) or geo.find_place(named[n])
+                    nm = re.sub(r"Washington,? D\.?C\.?", "Washington DC", named[n])
+                    found = geo.find_place(nm.split(",")[0]) or geo.find_place(nm)
                 if found:
                     self.c.store.set_ai_pin(it.uid, found[0], found[1], found[2], self.c.now())
                     done += 1

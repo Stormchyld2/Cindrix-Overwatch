@@ -336,6 +336,9 @@ fun SettingsScreen(vm: OverwatchViewModel) {
             Text("A phone cannot run the model. Type the address of a computer on your network that runs one (for example http://192.168.1.20:8080). " +
                 "With it set, Overwatch can place stories on the map. The brief and the translation never use it. Leave empty to keep the AI off.", fontSize = 12.sp, color = Ow.Muted)
             OutlinedTextField(aiText, { aiText = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("AI server address") })
+            Button(onClick = { aiText = "http://127.0.0.1:8089" }, shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Use the Cindrix Hub on this phone") }
+            Text("That fills in the address the Hub's model will use once the Hub is built (port 8089). Until then, leave the AI off.", fontSize = 11.sp, color = Ow.Muted)
             Button(onClick = { vm.saveAiUrl(aiText) }, shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Save") }
             if (vm.aiNote.isNotEmpty()) Text(vm.aiNote, fontSize = 12.sp, color = Ow.Muted)

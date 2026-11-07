@@ -207,7 +207,189 @@ Tokyo|35.7|139.7
 Pacific|10.0|-160.0
 Atlantic|30.0|-40.0
 Caribbean|15.0|-72.0
-Antarctica|-80.0|0.0"""
+Antarctica|-80.0|0.0
+Kharkiv|49.99|36.23
+Odesa|46.48|30.72
+Dnipro|48.46|35.05
+Zaporizhzhia|47.84|35.14
+Kherson|46.64|32.62
+Mariupol|47.10|37.54
+Donetsk|48.0|37.8
+Luhansk|48.57|39.31
+Lviv|49.84|24.03
+Sevastopol|44.62|33.52
+Bakhmut|48.59|38.0
+Pokrovsk|48.28|37.18
+Sumy|50.91|34.80
+Donbas|48.3|38.0
+Crimea|45.3|34.4
+St. Petersburg|59.93|30.34
+Kaliningrad|54.71|20.51
+Minsk|53.90|27.57
+Vilnius|54.69|25.28
+Riga|56.95|24.11
+Tallinn|59.44|24.75
+Novorossiysk|44.72|37.77
+Belgorod|50.60|36.59
+Kursk|51.73|36.19
+Vladivostok|43.12|131.89
+Murmansk|68.97|33.09
+Isfahan|32.65|51.67
+Bandar Abbas|27.18|56.27
+Natanz|33.72|51.73
+Tel Aviv|32.09|34.78
+Haifa|32.79|34.99
+Gaza City|31.50|34.47
+Rafah|31.30|34.25
+Khan Younis|31.35|34.31
+Golan Heights|33.0|35.8
+Beirut|33.89|35.50
+Aleppo|36.20|37.16
+Idlib|35.93|36.63
+Homs|34.73|36.72
+Mosul|36.34|43.13
+Erbil|36.19|44.01
+Basra|30.51|47.78
+Amman|31.95|35.93
+Riyadh|24.71|46.68
+Jeddah|21.54|39.17
+Sanaa|15.37|44.19
+Aden|12.78|45.04
+Hodeidah|14.80|42.95
+Muscat|23.59|58.41
+Doha|25.29|51.53
+Dubai|25.20|55.27
+Abu Dhabi|24.45|54.38
+Kuwait City|29.38|47.99
+Manama|26.23|50.59
+Ankara|39.93|32.86
+Istanbul|41.01|28.98
+Suez Canal|30.5|32.3
+Bab el-Mandeb|12.6|43.3
+Sinai|29.5|33.8
+Seoul|37.57|126.98
+Busan|35.18|129.08
+Osaka|34.69|135.50
+Okinawa|26.50|128.0
+Shanghai|31.23|121.47
+Hong Kong|22.32|114.17
+Shenzhen|22.54|114.06
+Guangzhou|23.13|113.26
+Chengdu|30.57|104.07
+Kaohsiung|22.63|120.30
+Kinmen|24.45|118.38
+Strait of Malacca|2.5|101.5
+Guam|13.44|144.79
+Manila|14.60|120.98
+Hanoi|21.03|105.85
+Ho Chi Minh City|10.82|106.63
+Bangkok|13.76|100.50
+Jakarta|-6.21|106.85
+Singapore|1.35|103.82
+Kuala Lumpur|3.14|101.69
+Naypyidaw|19.76|96.08
+Yangon|16.84|96.17
+Dhaka|23.81|90.41
+New Delhi|28.61|77.21
+Mumbai|19.08|72.88
+Kolkata|22.57|88.36
+Srinagar|34.08|74.80
+Islamabad|33.68|73.05
+Karachi|24.86|67.01
+Lahore|31.55|74.34
+Kandahar|31.63|65.71
+Kathmandu|27.72|85.32
+Colombo|6.93|79.86
+Ulaanbaatar|47.92|106.92
+Astana|51.17|71.43
+Almaty|43.24|76.89
+Tashkent|41.30|69.24
+Cairo|30.04|31.24
+Alexandria|31.20|29.92
+Khartoum|15.50|32.56
+Omdurman|15.64|32.48
+El Fasher|13.63|25.35
+Port Sudan|19.62|37.22
+Juba|4.85|31.58
+Addis Ababa|9.03|38.74
+Mogadishu|2.05|45.32
+Nairobi|-1.29|36.82
+Kampala|0.35|32.58
+Kigali|-1.95|30.06
+Goma|-1.68|29.22
+Kinshasa|-4.44|15.27
+Lagos|6.52|3.38
+Abuja|9.06|7.49
+Niamey|13.51|2.11
+Ouagadougou|12.37|-1.52
+Bamako|12.64|-8.00
+Dakar|14.72|-17.47
+Tripoli|32.89|13.19
+Benghazi|32.12|20.07
+Tunis|36.81|10.18
+Algiers|36.75|3.06
+Rabat|34.02|-6.84
+Johannesburg|-26.20|28.05
+Cape Town|-33.92|18.42
+Maputo|-25.97|32.57
+Luanda|-8.84|13.23
+Harare|-17.83|31.05
+Accra|5.60|-0.19
+Abidjan|5.36|-4.01
+Svalbard|78.2|15.6
+London|51.51|-0.13
+Paris|48.86|2.35
+Berlin|52.52|13.40
+Brussels|50.85|4.35
+Amsterdam|52.37|4.90
+Madrid|40.42|-3.70
+Rome|41.90|12.50
+Warsaw|52.23|21.01
+Rzeszow|50.04|22.00
+Gdansk|54.35|18.65
+Bucharest|44.43|26.10
+Constanta|44.18|28.65
+Belgrade|44.79|20.45
+Budapest|47.50|19.04
+Prague|50.08|14.44
+Vienna|48.21|16.37
+Athens|37.98|23.73
+Helsinki|60.17|24.94
+Stockholm|59.33|18.07
+Oslo|59.91|10.75
+Copenhagen|55.68|12.57
+Lisbon|38.72|-9.14
+Dublin|53.35|-6.26
+Chisinau|47.01|28.86
+Tiraspol|46.84|29.63
+Pristina|42.66|21.17
+Sarajevo|43.86|18.41
+Tbilisi|41.72|44.79
+Yerevan|40.18|44.51
+Baku|40.41|49.87
+Washington DC|38.90|-77.04
+New York City|40.71|-74.01
+Los Angeles|34.05|-118.24
+Mexico City|19.43|-99.13
+Havana|23.11|-82.37
+Port-au-Prince|18.59|-72.31
+Caracas|10.48|-66.90
+Bogota|4.71|-74.07
+Panama City|8.98|-79.52
+Brasilia|-15.79|-47.88
+Sao Paulo|-23.55|-46.63
+Buenos Aires|-34.60|-58.38
+Lima|-12.05|-77.04
+Santiago|-33.45|-70.67
+Ottawa|45.42|-75.70
+Toronto|43.65|-79.38
+Guantanamo|19.9|-75.15
+Essequibo|5.5|-59.0
+Canberra|-35.28|149.13
+Sydney|-33.87|151.21
+Darwin|-12.46|130.84
+Auckland|-36.85|174.76
+Port Moresby|-9.44|147.18"""
 
 PLACES = []
 for _line in _PLACES.splitlines():

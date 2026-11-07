@@ -177,4 +177,12 @@ class OverwatchTest {
         assertFalse(namesPlace("Government says air defenses engaged overnight", "Kyiv, Ukraine"))
         assertFalse(namesPlace("Markets are calm today", "Paris"))
     }
+
+    @Test fun citiesPinToTheCityNotTheCountry() {
+        assertEquals(49.99, geo.findPlace("Kharkiv")!!.lat, 0.01)
+        assertEquals(37.57, geo.findPlace("Seoul")!!.lat, 0.01)
+        assertEquals("Gaza City", geo.findPlace("Strike in Gaza City overnight")!!.name)
+        assertEquals("Washington DC", geo.findPlace("Washington DC")!!.name)
+        assertEquals("Ukraine", geo.findPlace("Ukraine")!!.name)
+    }
 }

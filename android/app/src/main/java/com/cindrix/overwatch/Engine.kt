@@ -314,7 +314,8 @@ class Engine(
         for ((i, it) in todo.withIndex()) {
             val name = named[i + 1]
             // "City, Country": try the most specific part first, or the country would win by length
-            val found = if (name == null || !namesPlace(it.shown, name)) null else geo.findPlace(name.substringBefore(",")) ?: geo.findPlace(name)
+            val nm = name?.replace(Regex("Washington,? D\\.?C\\.?"), "Washington DC")
+            val found = if (nm == null || !namesPlace(it.shown, name)) null else geo.findPlace(nm.substringBefore(",")) ?: geo.findPlace(nm)
             if (found != null) { store.setAiPin(it.uid, found.name, found.lat, found.lon, clock()); done++ }
             else store.setAiPin(it.uid, "", null, null, clock())
         }
