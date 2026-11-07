@@ -81,7 +81,7 @@ class Engine(
     private val prefs = ctx.getSharedPreferences("overwatch", Context.MODE_PRIVATE)
     private val hostNext = HashMap<String, Long>()
     private val hostLock = Mutex()
-    private val hostGaps = mapOf("api.gdeltproject.org" to 5500L)
+    private val hostGaps = mapOf("api.gdeltproject.org" to 10_000L)
 
     // ----- settings -----
     var homeStates: List<String>
@@ -159,10 +159,14 @@ class Engine(
         throttle(src.url)
         val get = if (Tor.isOnionUrl(src.url)) torFetch else fetch
         var (code, text) = get(src.url)
-        if (code == 429 && src.url.contains("gdeltproject.org")) {
-            delay(6500)
-            throttle(src.url)
-            val r = get(src.url); code = r.first; text = r.second
+        // GDELT answers 429 when asked too often (the limit is per internet connection, so other devices count too): wait and retry, twice at most
+        if (src.url.contains("gdeltproject.org")) {
+            for (wait in listOf(12_000L, 25_000L)) {
+                if (code != 429) break
+                delay(wait)
+                throttle(src.url)
+                val r = get(src.url); code = r.first; text = r.second
+            }
         }
         if (code != 200) throw FeedError("Could not reach it" + if (code != 0) " (HTTP $code)" else if (text.isNotEmpty()) ": $text" else "")
         return feeds.parse(src, text, clock())
@@ -174,7 +178,10 @@ class Engine(
         val health = store.health()
         val off = disabled
         val due = allSources().filter {
-            it.id !in off && (force || health[it.id] == null || now - health[it.id]!!.lastTry >= it.everyMinutes * 60)
+            // the refresh button never re-asks GDELT within 5 minutes of the last try: asking again is what makes it say 429
+            val lastTry = health[it.id]?.lastTry
+            val minGap = if (it.url.contains("gdeltproject.org")) 300 else 0
+            it.id !in off && (lastTry == null || (force && now - lastTry >= minGap) || now - lastTry >= it.everyMinutes * 60)
         }
         val gate = Semaphore(6)
         var done = 0

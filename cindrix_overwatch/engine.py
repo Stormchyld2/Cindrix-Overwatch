@@ -71,7 +71,7 @@ class Controller:
         self.store = Store(os.path.join(root, "overwatch.db"))
         self.settings = self._load_settings()
         # GDELT allows about one request every five seconds, so asks to that host are spaced out.
-        self.host_gaps = {"api.gdeltproject.org": 5.5}
+        self.host_gaps = {"api.gdeltproject.org": 10.0}
         self._host_next, self._host_lock = {}, threading.Lock()
 
     def _throttle(self, url):
@@ -236,10 +236,14 @@ class Controller:
     def _pull(self, src):
         self._throttle(src["url"])
         status, text = self.fetch(src["url"])
-        if status == 429 and src["url"].startswith("https://api.gdeltproject.org"):
-            time.sleep(self.host_gaps.get("api.gdeltproject.org", 0) + 1)      # rate limited: wait once and retry
-            self._throttle(src["url"])
-            status, text = self.fetch(src["url"])
+        if src["url"].startswith("https://api.gdeltproject.org"):
+            # 429 means asked too often (the limit is per internet connection, so other devices count too): wait and retry twice at most
+            for wait in (12.0, 25.0):
+                if status != 429:
+                    break
+                time.sleep(wait)
+                self._throttle(src["url"])
+                status, text = self.fetch(src["url"])
         if status != 200:
             raise feeds.FeedError("Could not reach it" + (f" (HTTP {status})" if status else (f": {text}" if text else "")))
         return feeds.PARSERS[src["parser"]](text, src, self.now())
@@ -249,8 +253,15 @@ class Controller:
         say = progress or (lambda m: None)
         now = self.now()
         health = self.store.health()
-        due = [s for s in self.sources()
-               if force or s["id"] not in health or now - (health[s["id"]]["last_try"] or 0) >= s["every"] * 60]
+        def is_due(s):
+            h = health.get(s["id"])
+            if h is None:
+                return True
+            gap = now - (h["last_try"] or 0)
+            # the refresh button never re-asks GDELT within 5 minutes of the last try: asking again is what makes it say 429
+            min_gap = 300 if s["url"].startswith("https://api.gdeltproject.org") else 0
+            return (force and gap >= min_gap) or gap >= s["every"] * 60
+        due = [s for s in self.sources() if is_due(s)]
         done, ok, failed, new = 0, 0, 0, 0
         results = []
 
