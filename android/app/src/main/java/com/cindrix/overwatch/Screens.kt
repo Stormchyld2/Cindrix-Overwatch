@@ -171,7 +171,7 @@ fun SelectedCard(vm: OverwatchViewModel) {
             Text("Tap a pin or a feed item to see it here", color = Ow.Muted, fontSize = 13.sp)
         } else {
             Text(it.kind.label + "  ·  " + SEVERITY_WORDS[it.severity], fontSize = 11.sp, color = Ow.kindColor(it.kind))
-            Text(it.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 3)
+            Text(it.shown, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 3)
             val more = if (it.count > 1) "  ·  ${it.count} sources" else ""
             val place = if (it.place.isNotEmpty()) "  ·  ${it.place}" else ""
             Text("${it.source}  ·  ${it.trust.label}$more$place  ·  ${ago(it.ts, nowSeconds())}", fontSize = 11.sp, color = Ow.Muted)
@@ -213,7 +213,8 @@ fun FeedCard(vm: OverwatchViewModel, item: Item, onOpen: () -> Unit) {
                 if (isHomeItem) Text("HOME", fontSize = 11.sp, color = Ow.Blue)
                 Text("${item.source}  ·  ${ago(item.ts, nowSeconds())}", fontSize = 11.sp, color = Ow.Muted)
             }
-            Text(item.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text(item.shown, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            if (item.titleEn.isNotEmpty()) Text("Translated by AI. Original: " + item.title, fontSize = 11.sp, color = Ow.Muted)
             Text(item.trust.label + if (item.count > 1) ", ${item.count} sources" else "", fontSize = 11.sp, color = Ow.Muted)
             if (item.url.isNotEmpty()) TextButton(onClick = onOpen, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text("Open page", fontSize = 12.sp) }
         }
@@ -227,12 +228,21 @@ fun BriefScreen(vm: OverwatchViewModel) {
     Column(Modifier.fillMaxSize().padding(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
-                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, vm.brief)
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, if (vm.aiBrief.isNotEmpty()) vm.aiBrief + "\n\n" + vm.brief else vm.brief)
                 ctx.startActivity(Intent.createChooser(send, "Share brief").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Share brief") }
+            if (vm.aiUrl.isNotEmpty()) Button(onClick = { vm.writeAiBrief() }, enabled = !vm.aiBusy, shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Write AI brief") }
         }
+        if (vm.aiNote.isNotEmpty()) Text(vm.aiNote, fontSize = 12.sp, color = Ow.Muted, modifier = Modifier.padding(top = 6.dp))
         Spacer(Modifier.height(8.dp))
         Column(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).verticalScroll(rememberScrollState()).padding(14.dp)) {
+            if (vm.aiBrief.isNotEmpty()) {
+                Text(vm.aiBrief, fontSize = 13.sp)
+                Spacer(Modifier.height(16.dp))
+                Text("PLAIN BRIEF (no AI)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Ow.Muted)
+                Spacer(Modifier.height(6.dp))
+            }
             Text(vm.brief, fontSize = 13.sp)
         }
     }
@@ -315,6 +325,20 @@ fun SettingsScreen(vm: OverwatchViewModel) {
             Button(onClick = { torNote = openWithTor(torCtx, onion) ?: "" }, shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Open in Tor Browser") }
             if (torNote.isNotEmpty()) Text(torNote, fontSize = 12.sp, color = Ow.Muted)
+            Text("Onion feeds you add in Sources are read through Tor already running on this phone (Orbot).", fontSize = 12.sp, color = Ow.Muted)
+            Button(onClick = { vm.checkTor() }, shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Check for Tor on this phone") }
+            if (vm.torNote.isNotEmpty()) Text(vm.torNote, fontSize = 12.sp, color = Ow.Muted)
+        }
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            var aiText by remember { mutableStateOf(vm.aiUrl) }
+            Text("AI helper (optional)", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("A phone cannot run the model. Type the address of a computer on your network that runs one (for example http://192.168.1.20:8080). " +
+                "With it set, Overwatch can write an AI brief, translate foreign headlines and place stories on the map. Leave empty to keep the AI off.", fontSize = 12.sp, color = Ow.Muted)
+            OutlinedTextField(aiText, { aiText = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("AI server address") })
+            Button(onClick = { vm.saveAiUrl(aiText) }, shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Save") }
+            if (vm.aiNote.isNotEmpty()) Text(vm.aiNote, fontSize = 12.sp, color = Ow.Muted)
         }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("About the data", fontWeight = FontWeight.Bold, fontSize = 18.sp)

@@ -71,6 +71,7 @@ class Engine(
     private val ctx: Context,
     private val fetch: (String) -> Pair<Int, String> = ::httpFetch,
     private val clock: () -> Double = ::nowSeconds,
+    private val torFetch: (String) -> Pair<Int, String> = Tor::fetch,
 ) {
     val geo: Gazetteer = ctx.assets.let { a ->
         Gazetteer(a.open("places.tsv").bufferedReader().readText(), a.open("states.tsv").bufferedReader().readText())
@@ -114,7 +115,7 @@ class Engine(
     }
 
     fun addFeed(name: String, url: String, kind: String): String? {
-        if (!validFeedUrl(url)) return "A feed address must start with https:// and use a website name."
+        if (!validFeedUrl(url)) return "A feed address must start with https:// and use a website name (or be a full .onion address)."
         if (customFeeds.size >= 30) return "That is the limit of 30 custom feeds."
         customFeeds = customFeeds + CustomFeed(name.ifBlank { "Custom feed" }.take(60), url.trim(), kind)
         return null
@@ -131,7 +132,7 @@ class Engine(
     fun allSources(): List<Src> {
         val custom = customFeeds.mapIndexedNotNull { i, c ->
             if (!validFeedUrl(c.url)) null
-            else Src("custom-$i", c.name, "Mine", Kind.of(c.kind), Trust.OUTLET, c.url)
+            else Src("custom-$i", c.name, if (Tor.isOnionUrl(c.url)) "Mine (Tor)" else "Mine", Kind.of(c.kind), Trust.OUTLET, c.url)
         }
         return nwsSources(homeStates) + BUILTIN_SOURCES + custom
     }
@@ -156,11 +157,12 @@ class Engine(
 
     private suspend fun pull(src: Src): List<Item> {
         throttle(src.url)
-        var (code, text) = fetch(src.url)
+        val get = if (Tor.isOnionUrl(src.url)) torFetch else fetch
+        var (code, text) = get(src.url)
         if (code == 429 && src.url.contains("gdeltproject.org")) {
             delay(6500)
             throttle(src.url)
-            val r = fetch(src.url); code = r.first; text = r.second
+            val r = get(src.url); code = r.first; text = r.second
         }
         if (code != 200) throw FeedError("Could not reach it" + if (code != 0) " (HTTP $code)" else if (text.isNotEmpty()) ": $text" else "")
         return feeds.parse(src, text, clock())
@@ -260,4 +262,62 @@ class Engine(
     }
 
     fun clearHistory() = store.clear()
+
+    // ----- the optional AI (a model server you run; see Ai.kt) -----
+    var aiUrl: String
+        get() = prefs.getString("ai_url", "") ?: ""
+        set(v) { prefs.edit().putString("ai_url", v).apply() }
+
+    /** Saves the AI server address. An empty one switches the AI off. Returns a plain-words problem, or null. */
+    fun setAiUrl(text: String): String? {
+        if (text.isBlank()) { aiUrl = ""; return null }
+        val clean = validAiUrl(text) ?: return "That address does not work. Use the address of a computer on your own network, like http://192.168.1.20:8080, or an https address."
+        aiUrl = clean
+        return null
+    }
+
+    private fun ai(): AiClient = AiClient(aiUrl.ifEmpty { throw AiError("Set the AI server address in Settings first.") })
+
+    /** Writes the AI brief. Blocks while the model works, so call it off the main thread. */
+    fun aiBrief(say: (String) -> Unit = {}): String {
+        val client = ai()
+        val (items, parts) = gatherBrief(group(allItems(24)), homeStates, 24)
+        if (items.isEmpty()) throw AiError("There is nothing saved from the last 24 hours yet. Refresh first.")
+        val changes = regionChanges(allItems(48), homeStates, clock())
+        return writeAiBrief(items, parts, homeStates, changes, say) { s, u, m, t -> client.chat(s, u, m, t) }
+    }
+
+    /** Translates new non-English headlines into English, one at a time. A failure is remembered so it is not retried. */
+    fun autoTranslate(limit: Int = 30): Int {
+        if (aiUrl.isEmpty()) return 0
+        val client = ai()
+        val todo = allItems(72).filter { it.titleEn.isEmpty() && looksForeign(it.title) && !store.triedTranslation(it.uid) }.take(limit)
+        var done = 0
+        for (it in todo) {
+            val t = try { translateWith({ s, u, m, tt, x -> client.chat(s, u, m, tt, x) }, it.title) } catch (e: AiError) { return done }
+            store.setTranslation(it.uid, t, "", clock())
+            if (t.isNotEmpty()) done++
+        }
+        return done
+    }
+
+    /** Asks the model WHICH PLACE each unpinned story is about, then finds it in the built-in list. The model never gives coordinates. */
+    fun autoPin(limit: Int = 24): Int {
+        if (aiUrl.isEmpty()) return 0
+        val client = ai()
+        val todo = allItems(72).filter { !it.pinned && it.kind != Kind.SPACE && it.kind != Kind.WEATHER && !store.triedAiPin(it.uid) }.take(limit)
+        if (todo.isEmpty()) return 0
+        val lines = todo.mapIndexed { i, it -> "${i + 1}. ${sanitizeHeadline(it.shown)}" }.joinToString("\n")
+        val out = client.chat(PIN_SYSTEM, "For each numbered headline, write one line `N: Place, Country`, or `N: none`. No other text.\n\n$lines", 60 + 24 * todo.size, 0.0)
+        val named = parsePlaces(out, todo.size)
+        var done = 0
+        for ((i, it) in todo.withIndex()) {
+            val name = named[i + 1]
+            // "City, Country": try the most specific part first, or the country would win by length
+            val found = if (name == null) null else geo.findPlace(name.substringBefore(",")) ?: geo.findPlace(name)
+            if (found != null) { store.setAiPin(it.uid, found.name, found.lat, found.lon, clock()); done++ }
+            else store.setAiPin(it.uid, "", null, null, clock())
+        }
+        return done
+    }
 }

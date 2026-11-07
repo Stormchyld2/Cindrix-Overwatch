@@ -43,6 +43,10 @@ class Item(
     var severity: Int = severity.coerceIn(0, 3)
     var count: Int = 1
     var firstSeen: Double = 0.0
+    var titleEn: String = ""
+    var summaryEn: String = ""
+    /** The English title when one was made, else the original. */
+    val shown: String get() = titleEn.ifEmpty { title }
     val uid: String = uid.ifEmpty { sha1("$sourceId|${url.ifEmpty { this.title }}").take(20) }
     val pinned: Boolean get() = lat != null && lon != null
 }

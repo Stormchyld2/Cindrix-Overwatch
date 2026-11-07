@@ -38,6 +38,11 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     var search by mutableStateOf("")
     var brief by mutableStateOf("")
     var message by mutableStateOf("")
+    var aiUrl by mutableStateOf(engine.aiUrl)
+    var aiBrief by mutableStateOf("")
+    var aiNote by mutableStateOf("")
+    var aiBusy by mutableStateOf(false)
+    var torNote by mutableStateOf("")
 
     init {
         viewModelScope.launch {
@@ -81,6 +86,50 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
             reload()
             refreshing = false
             progress = ""
+            runAiExtras()
+        }
+    }
+
+    /** After a refresh: translate new foreign headlines and place unpinned stories, when an AI server is set. */
+    private fun runAiExtras() {
+        if (aiUrl.isEmpty() || aiBusy) return
+        viewModelScope.launch {
+            val changed = withContext(Dispatchers.IO) {
+                try { engine.autoTranslate() + engine.autoPin() } catch (e: AiError) { 0 } catch (e: Exception) { 0 }
+            }
+            if (changed > 0) reload()
+        }
+    }
+
+    fun saveAiUrl(text: String) {
+        val err = engine.setAiUrl(text)
+        aiNote = err ?: if (engine.aiUrl.isEmpty()) "AI is off." else "Saved. New foreign headlines will be translated and unpinned stories placed after the next refresh."
+        if (err == null) { aiUrl = engine.aiUrl; if (aiUrl.isNotEmpty()) runAiExtras() }
+    }
+
+    fun writeAiBrief() {
+        if (aiBusy) return
+        aiBusy = true
+        aiNote = "Starting..."
+        viewModelScope.launch {
+            try {
+                aiBrief = withContext(Dispatchers.IO) { engine.aiBrief { p -> aiNote = p } }
+                aiNote = ""
+            } catch (e: AiError) {
+                aiNote = e.message ?: "The AI brief failed."
+            } catch (e: Exception) {
+                aiNote = "The AI brief failed (${e.javaClass.simpleName})."
+            }
+            aiBusy = false
+        }
+    }
+
+    fun checkTor() {
+        torNote = "Checking..."
+        viewModelScope.launch {
+            val port = withContext(Dispatchers.IO) { Tor.proxyPort() }
+            torNote = if (port != null) "Tor is running on this phone (port $port). Onion feeds will work."
+            else "No Tor found. Install Orbot, open it and connect, then check again."
         }
     }
 

@@ -46,12 +46,13 @@ fun nwsSources(states: List<String>) = states.map {
         "https://api.weather.gov/alerts/active?area=$it", "nws", 10)
 }
 
-/** Custom feeds must be https and use a real website name, not a bare IP address. */
+/** Custom feeds must be https and use a real website name, not a bare IP address. A .onion address may use http (Tor encrypts it). */
 fun validFeedUrl(url: String?): Boolean {
     val u = url?.trim().orEmpty()
     return try {
         val uri = URI(u)
         val host = uri.host ?: return false
+        if (Tor.isOnionHost(host)) return uri.scheme == "http" || uri.scheme == "https"
         uri.scheme == "https" && host.contains(".") && !host.matches(Regex("[\\d.]+")) && !host.contains(":")
     } catch (e: Exception) {
         false
