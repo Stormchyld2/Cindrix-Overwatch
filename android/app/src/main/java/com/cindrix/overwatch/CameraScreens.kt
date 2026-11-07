@@ -130,6 +130,23 @@ fun SupportedCamerasDialog(cat: Catalog, onClose: () -> Unit) {
                     }
                 }
                 if (shown.isEmpty()) item { Text("Nothing matches. Try another word or filter.", fontSize = 12.sp, color = Ow.Muted, modifier = Modifier.padding(8.dp)) }
+                if (cat.suggestions.isNotEmpty() && tier == null && q.isBlank()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 8.dp)) {
+                            Text(cat.suggestTitle, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(cat.suggestAbout, fontSize = 11.sp, color = Ow.Muted)
+                        }
+                    }
+                    cat.suggestions.forEach { g ->
+                        item { Text(g.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Ow.Blue, modifier = Modifier.padding(top = 4.dp)) }
+                        items(g.items) { s ->
+                            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Ow.Panel).padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(s.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(s.note, fontSize = 11.sp, color = Ow.Muted)
+                            }
+                        }
+                    }
+                }
             }
             TextButton(onClick = onClose, modifier = Modifier.align(Alignment.End)) { Text("Close") }
         }

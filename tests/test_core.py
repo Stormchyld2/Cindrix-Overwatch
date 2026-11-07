@@ -157,6 +157,16 @@ class Engine(unittest.TestCase):
         self.assertIn("readable", health["gdacs"]["error"] + "readable")
         self.assertTrue(health["usgs"]["ok"])
 
+    def test_watchtower_tab_off_by_default_and_remembered(self):
+        self.assertFalse(self.c.watchtower_on())
+        self.c.set_watchtower_on(True)
+        self.assertTrue(self.c.watchtower_on())
+        self.c.close()
+        self.c = engine.Controller(self.tmp.name, lambda u: (503, ""), lambda: self.t[0])
+        self.assertTrue(self.c.watchtower_on())
+        self.c.set_watchtower_on(False)
+        self.assertFalse(self.c.watchtower_on())
+
     def test_not_due_until_interval_passes(self):
         self.c.refresh()
         self.assertEqual(self.c.refresh()["asked"], 0)
@@ -1196,6 +1206,15 @@ class OnionChecksums(unittest.TestCase):
 
 
 class CameraTests(unittest.TestCase):
+    def test_catalog_has_wired_and_wireless_suggestions(self):
+        from cindrix_overwatch import cameras
+        sug = cameras.catalog()["suggestions"]
+        names = [g["name"] for g in sug["groups"]]
+        self.assertTrue(any("Wired" in n for n in names) and any("Wi-Fi" in n for n in names) and any("Battery" in n for n in names))
+        for g in sug["groups"]:
+            for it in g["items"]:
+                self.assertTrue(it["name"] and it["note"])
+
     def test_catalog_is_well_formed(self):
         from cindrix_overwatch import cameras
         cat = cameras.catalog()

@@ -18,6 +18,15 @@ def build_tab(app, p):
     head = tk.Frame(p, bg=theme.CHARCOAL)
     head.grid(row=0, column=0, sticky="ew", padx=14, pady=(12, 0))
     app.label(head, "Watchtower: your cameras", app.f_big).pack(side="left")
+    app.wt_on = tk.BooleanVar(value=app.c.watchtower_on())
+
+    def _toggle_tab():
+        app.c.set_watchtower_on(app.wt_on.get())
+        app.apply_watchtower_tab()
+
+    tk.Checkbutton(head, text="Show the Watchtower tab", variable=app.wt_on, command=_toggle_tab, bg=theme.CHARCOAL, fg=theme.BONE,
+                   selectcolor=theme.PANEL, activebackground=theme.CHARCOAL, activeforeground=theme.BONE, font=app.f_small).pack(
+        side="right", padx=(0, 14))
     link = tk.Label(head, text="Which cameras work?", font=app.f_small, fg=theme.MUTED, bg=theme.CHARCOAL, cursor="hand2")
     link.pack(side="right")
     link.bind("<Button-1>", lambda e: SupportedWindow(app))
@@ -233,6 +242,20 @@ class SupportedWindow:
                          wraplength=760).pack(fill="x", padx=12, pady=(2, 0))
             tk.Label(fr, text=b["note"], font=a.f_small, fg=theme.MUTED, bg=theme.PANEL, justify="left", anchor="w",
                      wraplength=760).pack(fill="x", padx=12, pady=(2, 8))
+        sug = cameras.catalog().get("suggestions")
+        if sug and not self.tier and not q:
+            tk.Label(self.inner, text=sug["title"], font=a.f_big, fg=theme.BONE, bg=theme.CHARCOAL, anchor="w").pack(fill="x", pady=(10, 0))
+            tk.Label(self.inner, text=sug["about"], font=a.f_small, fg=theme.MUTED, bg=theme.CHARCOAL, justify="left", anchor="w",
+                     wraplength=760).pack(fill="x")
+            for g in sug["groups"]:
+                tk.Label(self.inner, text=g["name"], font=a.f_head, fg=theme.BLUE, bg=theme.CHARCOAL, anchor="w").pack(fill="x", pady=(8, 0))
+                for it in g["items"]:
+                    fr = tk.Frame(self.inner, bg=theme.PANEL)
+                    fr.pack(fill="x", pady=2)
+                    tk.Label(fr, text=it["name"], font=a.f_bold, fg=theme.BONE, bg=theme.PANEL, anchor="w", justify="left",
+                             wraplength=760).pack(fill="x", padx=12, pady=(6, 0))
+                    tk.Label(fr, text=it["note"], font=a.f_small, fg=theme.MUTED, bg=theme.PANEL, anchor="w", justify="left",
+                             wraplength=760).pack(fill="x", padx=12, pady=(0, 6))
         if not shown:
             tk.Label(self.inner, text="Nothing matches. Try another word or filter.", font=a.f_small, fg=theme.MUTED, bg=theme.CHARCOAL).pack(pady=20)
 

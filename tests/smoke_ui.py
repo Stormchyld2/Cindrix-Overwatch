@@ -199,6 +199,11 @@ def main():
         app.lock_mode.set("pin")
         ui_cameras.lock_apply(app)
         assert c.lock()["mode"] == "pin"
+        assert not app.nav["watchtower"].winfo_ismapped(), "the Watchtower tab must be hidden until switched on"
+        app.wt_on.set(True)
+        c.set_watchtower_on(True); app.apply_watchtower_tab()
+        app.root.update()
+        assert app.nav["watchtower"].winfo_ismapped(), "the Watchtower tab must show once switched on"
         app.show_page("watchtower")
         assert app.watchtower.lock_ui is not None and not app.watchtower.visible, "Watchtower must start locked"
         app.watchtower.pin_var.set("0000")

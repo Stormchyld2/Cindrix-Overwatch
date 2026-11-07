@@ -188,6 +188,18 @@ class App:
         self._build_settings(self.pages["settings"])
         self.watchtower = ui_watchtower.WatchtowerPage(self, self.pages["watchtower"])
         self.render_defcon()
+        self.apply_watchtower_tab()
+
+    def apply_watchtower_tab(self):
+        """Show the Watchtower button only when it is switched on in Settings."""
+        b = self.nav["watchtower"]
+        if self.c.watchtower_on():
+            if not b.winfo_ismapped():
+                b.pack(side="left", padx=2)
+        else:
+            if getattr(self, "page", None) == "watchtower":
+                self.show_page("settings")
+            b.pack_forget()
 
     def _toggle_fullscreen(self, event=None, force=None):
         """F11 switches between maximized and true full screen (Escape leaves full screen)."""

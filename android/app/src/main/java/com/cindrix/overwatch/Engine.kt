@@ -322,6 +322,8 @@ class Engine(
     }
 
     // ----- what the screens show -----
+    fun watchtowerOn(): Boolean = store.meta("watchtower_on", "0") == "1"
+    fun setWatchtowerOn(on: Boolean) = store.setMeta("watchtower_on", if (on) "1" else "0")
     fun lastRefresh(): Double = store.meta("last_refresh", "0").toDoubleOrNull() ?: 0.0
     fun lastOpened(): Double = store.meta("last_opened", "0").toDoubleOrNull() ?: 0.0
     fun markOpened() {

@@ -20,7 +20,7 @@ from .store import Store
 MAX_BYTES = 5_000_000
 KEEP_DAYS = 30
 DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15,
-                    "onion_addresses": {}, "my_outlets": [], "cameras": [], "watchtower": {}, "link": {}, "lock": {}, "ai_root": "", "ai_enabled": False,
+                    "onion_addresses": {}, "my_outlets": [], "cameras": [], "watchtower": {}, "watchtower_on": False, "link": {}, "lock": {}, "ai_root": "", "ai_enabled": False,
                     "ai_engine": "", "ai_model": "auto", "auto_translate": True, "ai_pins": True, "ai_focus": True, "ai_instructions": ""}
 
 
@@ -255,6 +255,14 @@ class Controller:
         w.setdefault("one", "")
         w.setdefault("keep_days", 30)
         return w
+
+    def watchtower_on(self):
+        """Is the Watchtower tab shown? Off until switched on in Settings."""
+        return self.settings.get("watchtower_on") is True
+
+    def set_watchtower_on(self, on):
+        self.settings["watchtower_on"] = bool(on)
+        self.save_settings()
 
     def set_watchtower(self, **kw):
         w = self.watchtower()

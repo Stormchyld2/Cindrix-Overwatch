@@ -88,6 +88,7 @@ fun OverwatchApp(vm: OverwatchViewModel) {
         }
         NavigationBar(containerColor = Ow.Panel) {
             listOf("Map", "Intel", "Feed", "Brief", "Watchtower", "Settings").forEachIndexed { i, label ->
+                if (i == 4 && !vm.watchtowerOn) return@forEachIndexed
                 NavigationBarItem(selected = vm.tab == i, onClick = { vm.tab = i }, icon = {}, label = { Text(label, fontSize = 12.sp, maxLines = 1) },
                     alwaysShowLabel = true)
             }
@@ -590,9 +591,19 @@ fun SettingsScreen(vm: OverwatchViewModel) {
                 colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("What do the DEFCON levels mean?") }
         }
         FeedsSection(vm)
-        WatchtowerSection(vm)
-        PhoneLinkSection(vm)
-        LockSection(vm)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Watchtower (cameras)", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Off by default. Switch it on to add the Watchtower tab and its camera settings.", fontSize = 12.sp, color = Ow.Muted)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Show the Watchtower tab", modifier = Modifier.weight(1f))
+                Switch(checked = vm.watchtowerOn, onCheckedChange = { vm.setWatchtowerShown(it) })
+            }
+        }
+        if (vm.watchtowerOn) {
+            WatchtowerSection(vm)
+            PhoneLinkSection(vm)
+            LockSection(vm)
+        }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Saved history", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text("${vm.storedCount} items kept for 30 days on this device. They show even with no internet.", fontSize = 12.sp, color = Ow.Muted)

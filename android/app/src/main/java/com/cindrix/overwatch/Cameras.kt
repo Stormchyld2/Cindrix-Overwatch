@@ -14,7 +14,13 @@ data class Brand(
     val main: String, val sub: String, val models: String, val note: String, val setup: String,
 )
 
-data class Catalog(val about: String, val tiers: Map<String, String>, val brands: List<Brand>) {
+data class Suggestion(val name: String, val note: String)
+data class SuggestionGroup(val name: String, val items: List<Suggestion>)
+
+data class Catalog(
+    val about: String, val tiers: Map<String, String>, val brands: List<Brand>,
+    val suggestTitle: String = "", val suggestAbout: String = "", val suggestions: List<SuggestionGroup> = emptyList(),
+) {
     fun brand(id: String): Brand? = brands.firstOrNull { it.id == id }
 }
 
@@ -38,7 +44,15 @@ object Cameras {
             Brand(b.getString("id"), b.getString("name"), b.getString("tier"), b.optInt("port", 554), b.optString("scheme", "rtsp"),
                 b.optString("main"), b.optString("sub"), b.optString("models"), b.optString("note"), b.optString("setup"))
         }
-        return Catalog(o.optString("about"), tiers, brands)
+        val sg = o.optJSONObject("suggestions")
+        val groups = sg?.optJSONArray("groups")?.let { ga ->
+            (0 until ga.length()).map { i ->
+                val g = ga.getJSONObject(i)
+                val ia = g.getJSONArray("items")
+                SuggestionGroup(g.getString("name"), (0 until ia.length()).map { j -> ia.getJSONObject(j).let { Suggestion(it.getString("name"), it.getString("note")) } })
+            }
+        } ?: emptyList()
+        return Catalog(o.optString("about"), tiers, brands, sg?.optString("title") ?: "", sg?.optString("about") ?: "", groups)
     }
 
     private fun dec(s: String) = URLDecoder.decode(s.replace("+", "%2B"), "UTF-8")

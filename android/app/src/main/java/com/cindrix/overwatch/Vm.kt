@@ -28,6 +28,7 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
 
     var ready by mutableStateOf(false)
     var tab by mutableStateOf(0)
+    var watchtowerOn by mutableStateOf(false)
     var items by mutableStateOf<List<Item>>(emptyList())
     var indicators by mutableStateOf<List<Indicator>>(emptyList())
     var defconEst by mutableStateOf<Defcon.Estimate?>(null)
@@ -72,6 +73,7 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch {
             withContext(Dispatchers.IO) { engine.markOpened() }
+            watchtowerOn = withContext(Dispatchers.IO) { engine.watchtowerOn() }
             reload()
             ready = true
             refresh(false)
@@ -294,6 +296,12 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadBrief() {
         viewModelScope.launch { brief = withContext(Dispatchers.IO) { engine.brief() } }
+    }
+
+    fun setWatchtowerShown(on: Boolean) {
+        watchtowerOn = on
+        if (!on && tab == 4) tab = 5
+        viewModelScope.launch(Dispatchers.IO) { engine.setWatchtowerOn(on) }
     }
 
     fun saveHome(text: String) {

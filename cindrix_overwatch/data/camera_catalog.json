@@ -1,280 +1,342 @@
 {
- "version": 1,
- "about": "Addresses come from the makers' guides and well known community lists. Cindrix has not tested these cameras yet. The exact address can differ by model and firmware, so check the camera's manual if one does not connect.",
- "tiers": {
-  "works": "Works: it has a standard video address built in",
-  "enable": "Works after you turn it on in the camera's settings",
-  "some": "Some models only",
-  "no": "Not supported: cloud only"
- },
- "brands": [
-  {
-   "id": "reolink",
-   "name": "Reolink",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/Preview_01_main",
-   "sub": "/Preview_01_sub",
-   "models": "Most Reolink wired and PoE cameras and NVR channels (RLC and similar).",
-   "note": "Older firmware used /h264Preview_01_main. Battery-powered models generally do not offer RTSP, so check your model's specs. Turn on RTSP and ONVIF in the camera's network settings if they are off."
+  "version": 1,
+  "about": "Addresses come from the makers' guides and well known community lists. Cindrix has not tested these cameras yet. The exact address can differ by model and firmware, so check the camera's manual if one does not connect.",
+  "tiers": {
+    "works": "Works: it has a standard video address built in",
+    "enable": "Works after you turn it on in the camera's settings",
+    "some": "Some models only",
+    "no": "Not supported: cloud only"
   },
-  {
-   "id": "amcrest",
-   "name": "Amcrest",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/cam/realmonitor?channel=1&subtype=0",
-   "sub": "/cam/realmonitor?channel=1&subtype=1",
-   "models": "Amcrest IP cameras and NVRs (same stream style as Dahua).",
-   "note": "Sub-stream is subtype=1. For an NVR, change channel=1 to the camera's channel number."
-  },
-  {
-   "id": "dahua",
-   "name": "Dahua",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/cam/realmonitor?channel=1&subtype=0",
-   "sub": "/cam/realmonitor?channel=1&subtype=1",
-   "models": "Dahua cameras and recorders, and many cameras sold under other names that are built by Dahua.",
-   "note": "For a recorder, change channel=1 to the camera's channel number."
-  },
-  {
-   "id": "hikvision",
-   "name": "Hikvision",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/Streaming/Channels/101",
-   "sub": "/Streaming/Channels/102",
-   "models": "Hikvision cameras and recorders, including ColorVu and AcuSense lines.",
-   "note": "101 is camera 1 main stream, 102 is its sub-stream. Camera 2 is 201 and 202, and so on."
-  },
-  {
-   "id": "annke",
-   "name": "Annke",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/Streaming/Channels/101",
-   "sub": "/Streaming/Channels/102",
-   "models": "Annke cameras and recorders (Hikvision-based).",
-   "note": "Same addresses as Hikvision."
-  },
-  {
-   "id": "lorex",
-   "name": "Lorex",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/cam/realmonitor?channel=1&subtype=0",
-   "sub": "/cam/realmonitor?channel=1&subtype=1",
-   "models": "Many Lorex cameras and recorders (Dahua-style addresses).",
-   "note": "Cameras that belong to a Lorex recorder are reached through the recorder's address and channel number. Some newer Lorex lines are app-only, so check your model."
-  },
-  {
-   "id": "swann",
-   "name": "Swann",
-   "tier": "some",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/Streaming/Channels/101",
-   "sub": "",
-   "models": "Some Swann recorders and cameras.",
-   "note": "Support depends on the kit. Try the recorder's address. If it does not connect, check Swann's support page for your model."
-  },
-  {
-   "id": "axis",
-   "name": "Axis",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/axis-media/media.amp",
-   "sub": "",
-   "models": "Axis network cameras.",
-   "note": "Add ?videocodec=h264 to the end to force H.264. Axis can also set lower-resolution streams with resolution=640x360."
-  },
-  {
-   "id": "uniview",
-   "name": "Uniview (UNV)",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/unicast/c1/s0/live",
-   "sub": "/unicast/c1/s1/live",
-   "models": "Uniview cameras and recorders.",
-   "note": "c1 is channel 1. s0 is the main stream and s1 the sub-stream."
-  },
-  {
-   "id": "hanwha",
-   "name": "Hanwha Wisenet (Samsung)",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/profile1/media.smp",
-   "sub": "/profile2/media.smp",
-   "models": "Hanwha Wisenet and older Samsung Techwin cameras.",
-   "note": "Recorders may use /LiveChannel/0/media.smp and the recorder's own port."
-  },
-  {
-   "id": "bosch",
-   "name": "Bosch",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/video?inst=1&rec=0",
-   "sub": "/video?inst=2",
-   "models": "Bosch IP cameras.",
-   "note": "inst picks the stream. inst=1 is the first, inst=2 the second."
-  },
-  {
-   "id": "vivotek",
-   "name": "Vivotek",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/live.sdp",
-   "sub": "/live2.sdp",
-   "models": "Vivotek IP cameras.",
-   "note": "The second stream is not on every model."
-  },
-  {
-   "id": "geovision",
-   "name": "GeoVision",
-   "tier": "works",
-   "port": 8554,
-   "scheme": "rtsp",
-   "main": "/CH001.sdp",
-   "sub": "",
-   "models": "GeoVision IP cameras.",
-   "note": "Uses port 8554 rather than 554."
-  },
-  {
-   "id": "foscam",
-   "name": "Foscam",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/videoMain",
-   "sub": "/videoSub",
-   "models": "Foscam HD and newer cameras.",
-   "note": "Many HD models use port 88 for this address, so check the camera's network settings. Older models use /11 for the main stream and /12 for the sub-stream."
-  },
-  {
-   "id": "tapo",
-   "name": "TP-Link Tapo",
-   "tier": "enable",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/stream1",
-   "sub": "/stream2",
-   "models": "Tapo plug-in and PoE cameras (C200, C210, C310 and similar).",
-   "setup": "In the Tapo app open the camera, then Settings > Advanced Settings > Camera Account and make a separate username and password (6 to 32 characters). Use those here, not your Tapo login.",
-   "note": "Battery and solar models generally do not support RTSP. Doorbells only work when wired and always on. You cannot use Tapo Care cloud, local storage and NAS/NVR recording at the same time."
-  },
-  {
-   "id": "eufy",
-   "name": "Eufy",
-   "tier": "some",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "",
-   "sub": "",
-   "models": "Some Eufy cameras. It varies by model and firmware.",
-   "setup": "In the Eufy Security app open the camera, then Settings > Storage > NAS (RTSP Stream), turn it on and copy the address it shows. Paste that whole address here.",
-   "note": "Eufy does not use one fixed address, so always paste the one the app gives you. Some models do not support RTSP at all."
-  },
-  {
-   "id": "unifi",
-   "name": "Ubiquiti UniFi",
-   "tier": "enable",
-   "port": 7441,
-   "scheme": "rtsps",
-   "main": "",
-   "sub": "",
-   "models": "UniFi Protect cameras (through the Protect console) and standalone UniFi cameras.",
-   "setup": "In UniFi Protect open the camera, go to Settings > Advanced, turn RTSP on for the quality you want and copy the address. It looks like rtsps://CONSOLE-IP:7441/RANDOMLETTERS?enableSrtp. Paste that whole address here.",
-   "note": "The address is unique to each camera and quality. Standalone cameras not managed by Protect use rtsp://IP:554/s0 instead."
-  },
-  {
-   "id": "wyze",
-   "name": "Wyze",
-   "tier": "some",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/live",
-   "sub": "",
-   "models": "Wyze Cam v2 and Wyze Cam Pan on Wyze's RTSP beta firmware. Wyze Cam v1 does not work.",
-   "setup": "Install Wyze's RTSP firmware on a microSD card, then turn RTSP on in the Wyze app under Settings > Advanced Settings > RTSP and make a username and password (4 to 10 letters or numbers).",
-   "note": "Expect 7 to 10 seconds of delay and lower quality. Other Wyze models: check Wyze's current RTSP page for your camera."
-  },
-  {
-   "id": "generic-oem",
-   "name": "Generic camera (stream1 / stream2)",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "/stream1",
-   "sub": "/stream2",
-   "models": "Many low-cost cameras sold under store brands.",
-   "note": "If this does not connect, look in the camera's manual or web page for its RTSP address and use Other below."
-  },
-  {
-   "id": "other",
-   "name": "Other: any camera with an RTSP address",
-   "tier": "works",
-   "port": 554,
-   "scheme": "rtsp",
-   "main": "",
-   "sub": "",
-   "models": "Any camera or recorder that gives you an rtsp:// address (this covers anything that supports ONVIF Profile S).",
-   "note": "Paste the full address from the camera's manual or settings page. A web video address that starts with http:// or https:// also works."
-  },
-  {
-   "id": "ring",
-   "name": "Ring",
-   "tier": "no",
-   "port": 0,
-   "scheme": "",
-   "main": "",
-   "sub": "",
-   "models": "All Ring cameras and doorbells.",
-   "note": "Cloud only. Ring offers no local video stream, so it cannot be added."
-  },
-  {
-   "id": "nest",
-   "name": "Google Nest",
-   "tier": "no",
-   "port": 0,
-   "scheme": "",
-   "main": "",
-   "sub": "",
-   "models": "Nest cameras and doorbells.",
-   "note": "Cloud only. Google does not offer a standard local stream, so it cannot be added."
-  },
-  {
-   "id": "arlo",
-   "name": "Arlo",
-   "tier": "no",
-   "port": 0,
-   "scheme": "",
-   "main": "",
-   "sub": "",
-   "models": "Arlo cameras.",
-   "note": "Cloud based. Arlo does not offer a standard local RTSP stream, so it cannot be added."
-  },
-  {
-   "id": "blink",
-   "name": "Blink (Amazon)",
-   "tier": "no",
-   "port": 0,
-   "scheme": "",
-   "main": "",
-   "sub": "",
-   "models": "Blink cameras.",
-   "note": "Cloud only. Blink offers no local video stream, so it cannot be added."
+  "brands": [
+    {
+      "id": "reolink",
+      "name": "Reolink",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/Preview_01_main",
+      "sub": "/Preview_01_sub",
+      "models": "Most Reolink wired and PoE cameras and NVR channels (RLC and similar).",
+      "note": "Older firmware used /h264Preview_01_main. Battery-powered models generally do not offer RTSP, so check your model's specs. Turn on RTSP and ONVIF in the camera's network settings if they are off."
+    },
+    {
+      "id": "amcrest",
+      "name": "Amcrest",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/cam/realmonitor?channel=1&subtype=0",
+      "sub": "/cam/realmonitor?channel=1&subtype=1",
+      "models": "Amcrest IP cameras and NVRs (same stream style as Dahua).",
+      "note": "Sub-stream is subtype=1. For an NVR, change channel=1 to the camera's channel number."
+    },
+    {
+      "id": "dahua",
+      "name": "Dahua",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/cam/realmonitor?channel=1&subtype=0",
+      "sub": "/cam/realmonitor?channel=1&subtype=1",
+      "models": "Dahua cameras and recorders, and many cameras sold under other names that are built by Dahua.",
+      "note": "For a recorder, change channel=1 to the camera's channel number."
+    },
+    {
+      "id": "hikvision",
+      "name": "Hikvision",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/Streaming/Channels/101",
+      "sub": "/Streaming/Channels/102",
+      "models": "Hikvision cameras and recorders, including ColorVu and AcuSense lines.",
+      "note": "101 is camera 1 main stream, 102 is its sub-stream. Camera 2 is 201 and 202, and so on."
+    },
+    {
+      "id": "annke",
+      "name": "Annke",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/Streaming/Channels/101",
+      "sub": "/Streaming/Channels/102",
+      "models": "Annke cameras and recorders (Hikvision-based).",
+      "note": "Same addresses as Hikvision."
+    },
+    {
+      "id": "lorex",
+      "name": "Lorex",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/cam/realmonitor?channel=1&subtype=0",
+      "sub": "/cam/realmonitor?channel=1&subtype=1",
+      "models": "Many Lorex cameras and recorders (Dahua-style addresses).",
+      "note": "Cameras that belong to a Lorex recorder are reached through the recorder's address and channel number. Some newer Lorex lines are app-only, so check your model."
+    },
+    {
+      "id": "swann",
+      "name": "Swann",
+      "tier": "some",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/Streaming/Channels/101",
+      "sub": "",
+      "models": "Some Swann recorders and cameras.",
+      "note": "Support depends on the kit. Try the recorder's address. If it does not connect, check Swann's support page for your model."
+    },
+    {
+      "id": "axis",
+      "name": "Axis",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/axis-media/media.amp",
+      "sub": "",
+      "models": "Axis network cameras.",
+      "note": "Add ?videocodec=h264 to the end to force H.264. Axis can also set lower-resolution streams with resolution=640x360."
+    },
+    {
+      "id": "uniview",
+      "name": "Uniview (UNV)",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/unicast/c1/s0/live",
+      "sub": "/unicast/c1/s1/live",
+      "models": "Uniview cameras and recorders.",
+      "note": "c1 is channel 1. s0 is the main stream and s1 the sub-stream."
+    },
+    {
+      "id": "hanwha",
+      "name": "Hanwha Wisenet (Samsung)",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/profile1/media.smp",
+      "sub": "/profile2/media.smp",
+      "models": "Hanwha Wisenet and older Samsung Techwin cameras.",
+      "note": "Recorders may use /LiveChannel/0/media.smp and the recorder's own port."
+    },
+    {
+      "id": "bosch",
+      "name": "Bosch",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/video?inst=1&rec=0",
+      "sub": "/video?inst=2",
+      "models": "Bosch IP cameras.",
+      "note": "inst picks the stream. inst=1 is the first, inst=2 the second."
+    },
+    {
+      "id": "vivotek",
+      "name": "Vivotek",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/live.sdp",
+      "sub": "/live2.sdp",
+      "models": "Vivotek IP cameras.",
+      "note": "The second stream is not on every model."
+    },
+    {
+      "id": "geovision",
+      "name": "GeoVision",
+      "tier": "works",
+      "port": 8554,
+      "scheme": "rtsp",
+      "main": "/CH001.sdp",
+      "sub": "",
+      "models": "GeoVision IP cameras.",
+      "note": "Uses port 8554 rather than 554."
+    },
+    {
+      "id": "foscam",
+      "name": "Foscam",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/videoMain",
+      "sub": "/videoSub",
+      "models": "Foscam HD and newer cameras.",
+      "note": "Many HD models use port 88 for this address, so check the camera's network settings. Older models use /11 for the main stream and /12 for the sub-stream."
+    },
+    {
+      "id": "tapo",
+      "name": "TP-Link Tapo",
+      "tier": "enable",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/stream1",
+      "sub": "/stream2",
+      "models": "Tapo plug-in and PoE cameras (C200, C210, C310 and similar).",
+      "setup": "In the Tapo app open the camera, then Settings > Advanced Settings > Camera Account and make a separate username and password (6 to 32 characters). Use those here, not your Tapo login.",
+      "note": "Battery and solar models generally do not support RTSP. Doorbells only work when wired and always on. You cannot use Tapo Care cloud, local storage and NAS/NVR recording at the same time."
+    },
+    {
+      "id": "eufy",
+      "name": "Eufy",
+      "tier": "some",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "",
+      "sub": "",
+      "models": "Some Eufy cameras. It varies by model and firmware.",
+      "setup": "In the Eufy Security app open the camera, then Settings > Storage > NAS (RTSP Stream), turn it on and copy the address it shows. Paste that whole address here.",
+      "note": "Eufy does not use one fixed address, so always paste the one the app gives you. Some models do not support RTSP at all."
+    },
+    {
+      "id": "unifi",
+      "name": "Ubiquiti UniFi",
+      "tier": "enable",
+      "port": 7441,
+      "scheme": "rtsps",
+      "main": "",
+      "sub": "",
+      "models": "UniFi Protect cameras (through the Protect console) and standalone UniFi cameras.",
+      "setup": "In UniFi Protect open the camera, go to Settings > Advanced, turn RTSP on for the quality you want and copy the address. It looks like rtsps://CONSOLE-IP:7441/RANDOMLETTERS?enableSrtp. Paste that whole address here.",
+      "note": "The address is unique to each camera and quality. Standalone cameras not managed by Protect use rtsp://IP:554/s0 instead."
+    },
+    {
+      "id": "wyze",
+      "name": "Wyze",
+      "tier": "some",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/live",
+      "sub": "",
+      "models": "Wyze Cam v2 and Wyze Cam Pan on Wyze's RTSP beta firmware. Wyze Cam v1 does not work.",
+      "setup": "Install Wyze's RTSP firmware on a microSD card, then turn RTSP on in the Wyze app under Settings > Advanced Settings > RTSP and make a username and password (4 to 10 letters or numbers).",
+      "note": "Expect 7 to 10 seconds of delay and lower quality. Other Wyze models: check Wyze's current RTSP page for your camera."
+    },
+    {
+      "id": "generic-oem",
+      "name": "Generic camera (stream1 / stream2)",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "/stream1",
+      "sub": "/stream2",
+      "models": "Many low-cost cameras sold under store brands.",
+      "note": "If this does not connect, look in the camera's manual or web page for its RTSP address and use Other below."
+    },
+    {
+      "id": "other",
+      "name": "Other: any camera with an RTSP address",
+      "tier": "works",
+      "port": 554,
+      "scheme": "rtsp",
+      "main": "",
+      "sub": "",
+      "models": "Any camera or recorder that gives you an rtsp:// address (this covers anything that supports ONVIF Profile S).",
+      "note": "Paste the full address from the camera's manual or settings page. A web video address that starts with http:// or https:// also works."
+    },
+    {
+      "id": "ring",
+      "name": "Ring",
+      "tier": "no",
+      "port": 0,
+      "scheme": "",
+      "main": "",
+      "sub": "",
+      "models": "All Ring cameras and doorbells.",
+      "note": "Cloud only. Ring offers no local video stream, so it cannot be added."
+    },
+    {
+      "id": "nest",
+      "name": "Google Nest",
+      "tier": "no",
+      "port": 0,
+      "scheme": "",
+      "main": "",
+      "sub": "",
+      "models": "Nest cameras and doorbells.",
+      "note": "Cloud only. Google does not offer a standard local stream, so it cannot be added."
+    },
+    {
+      "id": "arlo",
+      "name": "Arlo",
+      "tier": "no",
+      "port": 0,
+      "scheme": "",
+      "main": "",
+      "sub": "",
+      "models": "Arlo cameras.",
+      "note": "Cloud based. Arlo does not offer a standard local RTSP stream, so it cannot be added."
+    },
+    {
+      "id": "blink",
+      "name": "Blink (Amazon)",
+      "tier": "no",
+      "port": 0,
+      "scheme": "",
+      "main": "",
+      "sub": "",
+      "models": "Blink cameras.",
+      "note": "Cloud only. Blink offers no local video stream, so it cannot be added."
+    }
+  ],
+  "suggestions": {
+    "title": "Cameras to look at",
+    "about": "Prices change, so none are listed. Nothing here has been tested with Watchtower yet. Look for RTSP or ONVIF in the camera's specifications before you buy.",
+    "groups": [
+      {
+        "name": "Wired (plugs into your router)",
+        "items": [
+          {
+            "name": "Reolink PoE cameras (for example RLC-510A)",
+            "note": "One network cable carries power and picture. Needs a PoE switch or injector. Most dependable choice."
+          },
+          {
+            "name": "Amcrest, Hikvision or Dahua PoE cameras",
+            "note": "Standard video address built in. Plenty of models, both indoor and outdoor."
+          }
+        ]
+      },
+      {
+        "name": "Wi-Fi, plugged in or on a power bank",
+        "items": [
+          {
+            "name": "Reolink E1 Outdoor and similar plug-in Wi-Fi models",
+            "note": "Standard video address after you switch it on in the camera's settings. Runs from a 5 V or 12 V adapter."
+          },
+          {
+            "name": "Tapo C120 (ONVIF listed)",
+            "note": "Low cost, runs from 5 V USB-C, so a power bank can run it. A good first camera to test with."
+          }
+        ]
+      },
+      {
+        "name": "Battery or solar (limited)",
+        "items": [
+          {
+            "name": "Reolink Argus 3 Ultra, Argus PT Ultra, Altas",
+            "note": "Only work with the Reolink Home Hub. We have not confirmed how the hub connects to a hotspot."
+          },
+          {
+            "name": "neolink bridge for Reolink battery cameras",
+            "note": "Community tool, experimental. Not part of Overwatch."
+          }
+        ]
+      },
+      {
+        "name": "Not these",
+        "items": [
+          {
+            "name": "Cloud-only battery and solar cameras (Vicohome, Thybro and similar)",
+            "note": "No standard video address, so Watchtower cannot show them."
+          },
+          {
+            "name": "Tapo C410 solar kit",
+            "note": "No RTSP or ONVIF."
+          },
+          {
+            "name": "Ring",
+            "note": "Not supported."
+          }
+        ]
+      }
+    ]
   }
- ]
 }

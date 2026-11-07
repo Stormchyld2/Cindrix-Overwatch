@@ -276,6 +276,12 @@ class OverwatchTest {
         c.brands.forEach { assertTrue(it.id, it.tier in c.tiers); if (it.tier == "no") assertEquals("", it.main) }
     }
 
+    @Test fun cameraSuggestionsListHasWiredAndWireless() {
+        val g = camCat.suggestions.map { it.name }
+        assertTrue(g.any { "Wired" in it } && g.any { "Wi-Fi" in it } && g.any { "Battery" in it })
+        camCat.suggestions.forEach { grp -> assertTrue(grp.items.isNotEmpty()); grp.items.forEach { assertTrue(it.name.isNotBlank() && it.note.isNotBlank()) } }
+    }
+
     @Test fun cameraAddressesAndLogins() {
         val c = camCat
         assertEquals("rtsp://192.168.1.20:554/Preview_01_main", Cameras.buildAddress(c, "reolink", "192.168.1.20"))
