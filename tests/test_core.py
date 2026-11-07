@@ -953,6 +953,19 @@ class Translation(unittest.TestCase):
         self.assertEqual(sources.intel_channel(mk("a", "weather")), "alerts")
         self.assertEqual(sources.intel_channel(mk("travel", "conflict")), "alerts")
 
+    def test_prepper_feeds_have_their_own_channel_and_stay_out_of_early_warning(self):
+        from cindrix_overwatch import scoring
+        pp = [x for x in sources.BUILTIN if x["group"] == "Prepper"]
+        self.assertGreaterEqual(len(pp), 20)
+        self.assertEqual({x["kind"] for x in pp}, {"prepper"})
+        self.assertTrue(all(sources.valid_feed_url(x["url"]) for x in pp))
+        ids = [x["id"] for x in sources.BUILTIN]
+        self.assertEqual(len(ids), len(set(ids)))
+        mk = lambda kind: Item("a", "a", kind, "outlet", "Earthquake warning: stock up now", ts=S.NOW, uid="u" + kind)
+        self.assertEqual(sources.intel_channel(mk("prepper")), "prepper")
+        self.assertEqual(scoring.top_warnings([mk("prepper")], [], S.NOW), [])
+        self.assertEqual(sources.custom_sources([{"name": "X", "url": "https://x.example.com/feed", "kind": "prepper"}])[0]["kind"], "prepper")
+
     def test_gdelt_is_hourly_and_always_last_in_a_refresh(self):
         g = [x for x in sources.BUILTIN if "gdeltproject" in x["url"]]
         self.assertEqual(len(g), 2)

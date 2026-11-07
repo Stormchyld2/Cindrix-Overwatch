@@ -48,6 +48,30 @@ val BUILTIN_SOURCES = listOf(
     Src("bleeping", "BleepingComputer", "Cyber", Kind.CYBER, Trust.OUTLET, "https://www.bleepingcomputer.com/feed/"),
     Src("krebs", "Krebs on Security", "Cyber", Kind.CYBER, Trust.OUTLET, "https://krebsonsecurity.com/feed/", everyMinutes = 60),
     Src("thn", "The Hacker News", "Cyber", Kind.CYBER, Trust.OUTLET, "https://feeds.feedburner.com/TheHackersNews"),
+    Src("pp-survivalblog", "SurvivalBlog", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://survivalblog.com/feed", everyMinutes = 120),
+    Src("pp-recoiloffgridm", "Recoil OffGrid Magazine", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://offgridweb.com/feed", everyMinutes = 120),
+    Src("pp-survivallife", "Survival Life", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://survivallife.com/feed", everyMinutes = 120),
+    Src("pp-survivopedia", "Survivopedia", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://survivopedia.com/feed", everyMinutes = 120),
+    Src("pp-survivalsulliv", "Survival Sullivan", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://survivalsullivan.com/feed", everyMinutes = 120),
+    Src("pp-thesurvivaljou", "The Survival Journal", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://thesurvivaljournal.com/feed", everyMinutes = 120),
+    Src("pp-theorganicprep", "The Organic Prepper", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://theorganicprepper.com/feed", everyMinutes = 120),
+    Src("pp-readynutrition", "Ready Nutrition", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://readynutrition.com/feed", everyMinutes = 120),
+    Src("pp-askaprepper", "Ask a Prepper", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://askaprepper.com/feed", everyMinutes = 120),
+    Src("pp-theprepperjour", "The Prepper Journal", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://theprepperjournal.com/feed", everyMinutes = 120),
+    Src("pp-rethinksurviva", "reThinkSurvival", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://rethinksurvival.com/feed", everyMinutes = 120),
+    Src("pp-trueprepper", "TruePrepper", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://trueprepper.com/feed", everyMinutes = 120),
+    Src("pp-prepperswill", "Prepper's Will", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://prepperswill.com/feed", everyMinutes = 120),
+    Src("pp-thepreppinggui", "The Prepping Guide", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://thepreppingguide.com/feed", everyMinutes = 120),
+    Src("pp-urbansurvival", "UrbanSurvival", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://urbansurvival.com/feed", everyMinutes = 120),
+    Src("pp-suburbansurviv", "Suburban Survival Blog", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://suburbansurvivalblog.com/feed", everyMinutes = 120),
+    Src("pp-apartmentprepp", "Apartment Prepper", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://apartmentprepper.com/feed", everyMinutes = 120),
+    Src("pp-willowhavenout", "Willow Haven Outdoor", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://willowhavenoutdoor.com/feed", everyMinutes = 120),
+    Src("pp-primalsurvivor", "Primal Survivor", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://primalsurvivor.net/feed", everyMinutes = 120),
+    Src("pp-prepsos", "PrepSOS", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://prepsos.com/blogs/prep-sos.atom", everyMinutes = 120),
+    Src("pp-preparedbeesur", "Prepared Bee Survival Blog", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://preparedbee.com/blogs/blog.atom", everyMinutes = 120),
+    Src("pp-thesurvivalmom", "The Survival Mom Blog", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://thesurvivalmom.com/feed", everyMinutes = 120),
+    Src("pp-preparednessma", "Preparedness Mama", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://preparednessmama.com/feed", everyMinutes = 120),
+    Src("pp-hamradiopreppe", "Ham Radio Prepper", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://hamradioprepper.com/feed", everyMinutes = 120),
 )
 
 /** The four reading channels of the Intel tab, the same as on the PC. */
@@ -57,6 +81,7 @@ val INTEL_CHANNELS = listOf(
     Channel("military", "Military", setOf(Kind.MILITARY)),
     Channel("world", "World news", setOf(Kind.NEWS, Kind.CONFLICT)),
     Channel("cyber", "Cyber", setOf(Kind.CYBER)),
+    Channel("prepper", "Prepper", setOf(Kind.PREPPER)),
     Channel("alerts", "Alerts and weather", setOf(Kind.HAZARD, Kind.WEATHER, Kind.SPACE, Kind.HEALTH)),
 )
 

@@ -377,7 +377,7 @@ class Engine(
         tops.forEachIndexed { k, (it, why) ->
             sb.append("  ${k + 1}. ${it.shown} (${it.source}; ${it.trust.label.lowercase()}${if (why.isNotEmpty()) "; " + why.joinToString(", ") else ""})\n")
         }
-        val day = group(allItems(24)).filter { it.kind != Kind.CYBER }
+        val day = group(allItems(24)).filter { it.kind != Kind.CYBER && it.kind != Kind.PREPPER }
         val top = day.sortedWith(compareByDescending<Item> { it.severity }.thenByDescending { it.ts }).take(12)
         sb.append("\nMost serious in the last 24 hours:\n")
         if (top.isEmpty()) sb.append("  Nothing saved yet. Refresh while online.\n")
@@ -431,7 +431,7 @@ class Engine(
     fun autoPin(limit: Int = 24): Int {
         if (aiUrl.isEmpty()) return 0
         val client = ai()
-        val todo = allItems(72).filter { !it.pinned && it.kind != Kind.SPACE && it.kind != Kind.WEATHER && !store.triedAiPin(it.uid) }.take(limit)
+        val todo = allItems(72).filter { !it.pinned && it.kind != Kind.SPACE && it.kind != Kind.WEATHER && it.kind != Kind.PREPPER && !store.triedAiPin(it.uid) }.take(limit)
         if (todo.isEmpty()) return 0
         val lines = todo.mapIndexed { i, it -> "${i + 1}. ${sanitizeHeadline(it.shown)}" }.joinToString("\n")
         val out = client.chat(PIN_SYSTEM, "For each numbered headline, write one line `N: Place, Country`, or `N: none`. No other text.\n\n$lines", 60 + 24 * todo.size, 0.0)

@@ -299,7 +299,7 @@ fun DashRow(vm: OverwatchViewModel, item: Item, rank: Int? = null, reasons: List
             if (tags.isNotEmpty()) Text(tags.joinToString("  ·  ") { it.uppercase() }, fontSize = 10.sp,
                 color = if (tags.any { it == "troop movement" || it == "force movement" }) Ow.Amber else Ow.Blue)
         }
-        if (!item.pinned && item.kind != Kind.CYBER) TextButton(onClick = { vm.startPin(item) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) { Text("Pin", fontSize = 12.sp) }
+        if (!item.pinned && item.kind != Kind.CYBER && item.kind != Kind.PREPPER) TextButton(onClick = { vm.startPin(item) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) { Text("Pin", fontSize = 12.sp) }
     }
 }
 
@@ -434,7 +434,7 @@ fun BriefScreen(vm: OverwatchViewModel) {
 }
 
 /** The kind a new feed files under for each of the four Intel categories. */
-private val FEED_CATEGORIES = listOf("military" to "Military", "news" to "World news", "cyber" to "Cyber", "hazard" to "Alerts and weather")
+private val FEED_CATEGORIES = listOf("military" to "Military", "news" to "World news", "cyber" to "Cyber", "prepper" to "Prepper", "hazard" to "Alerts and weather")
 
 @Composable
 fun FeedsSection(vm: OverwatchViewModel) {

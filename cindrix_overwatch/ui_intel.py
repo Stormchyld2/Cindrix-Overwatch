@@ -181,18 +181,19 @@ class IntelPage:
                  ("military", "MILITARY", theme.BLUE, 3, 1, 1, "military"),
                  ("world", "WORLD NEWS", theme.MUTED, 3, 2, 1, "world"),
                  ("cyber", "CYBER", theme.KIND_COLORS["cyber"], 4, 1, 1, "cyber"),
-                 ("alerts", "ALERTS AND WEATHER", theme.AMBER, 4, 2, 1, "alerts"))
+                 ("alerts", "ALERTS AND WEATHER", theme.AMBER, 4, 2, 1, "alerts"),
+                 ("prepper", "PREPPER NEWS", theme.KIND_COLORS["prepper"], 5, 0, 3, "prepper"))
         for key, title, col, r, c, span, chan in specs:
             if key == "troops":
                 link = ("See all \u2192", lambda: self.go_reading("military", deploy=True))
             else:
                 link = ("See all \u2192", lambda ch=chan: self.go_reading(ch))
             self.d_panels[key] = self._panel(body, title, col, r, c, colspan=span, link=link)
-        for r in (2, 3, 4):
+        for r in (2, 3, 4, 5):
             body.rowconfigure(r, weight=1)
         self.d_foot = a.label(body, "Click a headline to read it. Pin stories that are not on the map, with a click on the map or a typed place.",
                               a.f_small, theme.MUTED)
-        self.d_foot.grid(row=5, column=0, columnspan=3, sticky="w", padx=14, pady=(2, 12))
+        self.d_foot.grid(row=6, column=0, columnspan=3, sticky="w", padx=14, pady=(2, 12))
 
     def _panel(self, parent, title, color, row, col, rowspan=1, colspan=1, link=None):
         a = self.app
@@ -249,7 +250,7 @@ class IntelPage:
             for text in tags:
                 tk.Label(meta, text=text.upper(), font=a.f_small, fg=theme.AMBER if text in ("force movement", "troop movement") else theme.BLUE,
                          bg=theme.CHARCOAL, padx=5).pack(side="left", padx=(6, 0))
-            if not it.pinned and it.kind != "cyber":
+            if not it.pinned and it.kind not in ("cyber", "prepper"):
                 pb = tk.Label(row, text="Pin", font=a.f_small, fg=theme.ON_BLUE, bg=theme.BLUE, padx=8, pady=2, cursor="hand2")
                 pb.pack(side="right", padx=6)
                 pb._no_open = True
@@ -287,7 +288,7 @@ class IntelPage:
         troops = [i for i in day if is_deployment(i)][:5]
         self._dash_rows(self.d_panels["troops"], [(i, []) for i in troops])
         self.d_panels["troops"].count.configure(text=f"{len(troops)} in 24 h")
-        for key in ("military", "world", "cyber", "alerts"):
+        for key in ("military", "world", "cyber", "alerts", "prepper"):
             items = c.feed(channel=key, limit=1000, hours=48, region=reg, min_severity=sev)
             if key == "alerts":     # home alerts first, then the most serious
                 items.sort(key=lambda i: (not is_home(i, home), -i.severity, -i.ts))

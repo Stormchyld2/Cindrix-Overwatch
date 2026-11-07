@@ -4,7 +4,7 @@ import java.security.MessageDigest
 
 enum class Kind(val label: String) {
     MILITARY("MILITARY"), CONFLICT("CONFLICT"), HAZARD("HAZARD"), WEATHER("WEATHER"),
-    SPACE("SPACE"), HEALTH("HEALTH"), NEWS("NEWS"), CYBER("CYBER");
+    SPACE("SPACE"), HEALTH("HEALTH"), NEWS("NEWS"), CYBER("CYBER"), PREPPER("PREPPER");
 
     companion object {
         fun of(s: String): Kind = entries.firstOrNull { it.name.equals(s, ignoreCase = true) } ?: NEWS

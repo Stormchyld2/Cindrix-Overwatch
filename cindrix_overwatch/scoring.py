@@ -222,7 +222,7 @@ def top_warnings(items, home_states, now, n=10, per_source=3):
     """The n items most relevant for early warning, best first, as (item, reasons). Sports and entertainment, cyber
     stories and anything older than two days are left out, and no one source can fill the list."""
     from .ai import off_topic
-    pool = [i for i in items if i.kind != "cyber" and now - i.ts <= 48 * 3600 and not off_topic(i)]
+    pool = [i for i in items if i.kind not in ("cyber", "prepper") and now - i.ts <= 48 * 3600 and not off_topic(i)]
     pool.sort(key=lambda i: (-warning_score(i, home_states, now), -i.ts))
     out, taken = [], {}
     for it in pool:

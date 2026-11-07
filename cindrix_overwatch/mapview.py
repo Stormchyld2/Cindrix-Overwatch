@@ -114,7 +114,7 @@ class WorldMap(tk.Canvas):
             return "weather"
         if item.kind in ("hazard", "space", "health"):
             return "hazard"
-        return "news" if item.kind == "cyber" else item.kind
+        return "news" if item.kind in ("cyber", "prepper") else item.kind
 
     def shown(self, item):
         """A pin shows when its layer is on, or it is a force movement and Troop movements is on, or it is yours and My pins is on."""

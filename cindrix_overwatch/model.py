@@ -3,9 +3,9 @@
 import hashlib
 from dataclasses import dataclass, field
 
-KINDS = ("military", "conflict", "hazard", "weather", "space", "health", "news", "cyber")
+KINDS = ("military", "conflict", "hazard", "weather", "space", "health", "news", "cyber", "prepper")
 KIND_LABELS = {"military": "MILITARY", "conflict": "CONFLICT", "hazard": "HAZARD", "weather": "WEATHER",
-               "space": "SPACE", "health": "HEALTH", "news": "NEWS", "cyber": "CYBER"}
+               "space": "SPACE", "health": "HEALTH", "news": "NEWS", "cyber": "CYBER", "prepper": "PREPPER"}
 TRUST = ("official", "wire", "outlet")
 TRUST_LABELS = {"official": "Official source", "wire": "Wire or agency", "outlet": "Single outlet"}
 SEVERITY_WORDS = ("Info", "Notice", "Warning", "Severe")

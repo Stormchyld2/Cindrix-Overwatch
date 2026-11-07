@@ -29,6 +29,7 @@ object Ow {
         Kind.HAZARD, Kind.WEATHER, Kind.SPACE -> Amber
         Kind.HEALTH -> Orange
         Kind.NEWS, Kind.CYBER -> Muted
+        Kind.PREPPER -> Color(0xFF7FC97F)
     }
 }
 

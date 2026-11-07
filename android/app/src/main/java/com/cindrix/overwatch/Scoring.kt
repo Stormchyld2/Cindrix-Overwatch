@@ -192,7 +192,7 @@ fun whyItMatters(item: Item, home: List<String>): List<String> {
 /** The n items most relevant for early warning, best first. Sports, entertainment, cyber stories and anything older than two days are
  *  left out, and no one source can fill the list. */
 fun topWarnings(items: List<Item>, home: List<String>, now: Double, n: Int = 10, perSource: Int = 3): List<Pair<Item, List<String>>> {
-    val pool = items.filter { it.kind != Kind.CYBER && now - it.ts <= 48 * 3600 && !offTopic(it) }
+    val pool = items.filter { it.kind != Kind.CYBER && it.kind != Kind.PREPPER && now - it.ts <= 48 * 3600 && !offTopic(it) }
         .sortedWith(compareByDescending<Item> { warningScore(it, home, now) }.thenByDescending { it.ts })
     val out = mutableListOf<Pair<Item, List<String>>>()
     val taken = HashMap<String, Int>()

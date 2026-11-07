@@ -109,6 +109,31 @@ BUILTIN = [
        "https://www.cbsnews.com/latest/rss/world", "rss", 30, "checked"),
     _s("france24", "France 24", "News", "news", "outlet",
        "https://www.france24.com/en/rss", "rss", 30, "checked"),
+    # ----- prepper and self-reliance blogs (owner's list; addresses are the ones the sites publish, not yet fetched from a runner) -----
+    _s("pp-survivalblog", "SurvivalBlog", "Prepper", "prepper", "outlet", "https://survivalblog.com/feed", "rss", 120),
+    _s("pp-recoiloffgridm", "Recoil OffGrid Magazine", "Prepper", "prepper", "outlet", "https://offgridweb.com/feed", "rss", 120),
+    _s("pp-survivallife", "Survival Life", "Prepper", "prepper", "outlet", "https://survivallife.com/feed", "rss", 120),
+    _s("pp-survivopedia", "Survivopedia", "Prepper", "prepper", "outlet", "https://survivopedia.com/feed", "rss", 120),
+    _s("pp-survivalsulliv", "Survival Sullivan", "Prepper", "prepper", "outlet", "https://survivalsullivan.com/feed", "rss", 120),
+    _s("pp-thesurvivaljou", "The Survival Journal", "Prepper", "prepper", "outlet", "https://thesurvivaljournal.com/feed", "rss", 120),
+    _s("pp-theorganicprep", "The Organic Prepper", "Prepper", "prepper", "outlet", "https://theorganicprepper.com/feed", "rss", 120),
+    _s("pp-readynutrition", "Ready Nutrition", "Prepper", "prepper", "outlet", "https://readynutrition.com/feed", "rss", 120),
+    _s("pp-askaprepper", "Ask a Prepper", "Prepper", "prepper", "outlet", "https://askaprepper.com/feed", "rss", 120),
+    _s("pp-theprepperjour", "The Prepper Journal", "Prepper", "prepper", "outlet", "https://theprepperjournal.com/feed", "rss", 120),
+    _s("pp-rethinksurviva", "reThinkSurvival", "Prepper", "prepper", "outlet", "https://rethinksurvival.com/feed", "rss", 120),
+    _s("pp-trueprepper", "TruePrepper", "Prepper", "prepper", "outlet", "https://trueprepper.com/feed", "rss", 120),
+    _s("pp-prepperswill", "Prepper's Will", "Prepper", "prepper", "outlet", "https://prepperswill.com/feed", "rss", 120),
+    _s("pp-thepreppinggui", "The Prepping Guide", "Prepper", "prepper", "outlet", "https://thepreppingguide.com/feed", "rss", 120),
+    _s("pp-urbansurvival", "UrbanSurvival", "Prepper", "prepper", "outlet", "https://urbansurvival.com/feed", "rss", 120),
+    _s("pp-suburbansurviv", "Suburban Survival Blog", "Prepper", "prepper", "outlet", "https://suburbansurvivalblog.com/feed", "rss", 120),
+    _s("pp-apartmentprepp", "Apartment Prepper", "Prepper", "prepper", "outlet", "https://apartmentprepper.com/feed", "rss", 120),
+    _s("pp-willowhavenout", "Willow Haven Outdoor", "Prepper", "prepper", "outlet", "https://willowhavenoutdoor.com/feed", "rss", 120),
+    _s("pp-primalsurvivor", "Primal Survivor", "Prepper", "prepper", "outlet", "https://primalsurvivor.net/feed", "rss", 120),
+    _s("pp-prepsos", "PrepSOS", "Prepper", "prepper", "outlet", "https://prepsos.com/blogs/prep-sos.atom", "rss", 120),
+    _s("pp-preparedbeesur", "Prepared Bee Survival Blog", "Prepper", "prepper", "outlet", "https://preparedbee.com/blogs/blog.atom", "rss", 120),
+    _s("pp-thesurvivalmom", "The Survival Mom Blog", "Prepper", "prepper", "outlet", "https://thesurvivalmom.com/feed", "rss", 120),
+    _s("pp-preparednessma", "Preparedness Mama", "Prepper", "prepper", "outlet", "https://preparednessmama.com/feed", "rss", 120),
+    _s("pp-hamradiopreppe", "Ham Radio Prepper", "Prepper", "prepper", "outlet", "https://hamradioprepper.com/feed", "rss", 120),
     _s("tass", "TASS (Russian state view)", "News", "news", "outlet",
        "https://tass.com/rss/v2.xml", "rss", 30, "checked"),
 ]
@@ -137,13 +162,28 @@ TRIAL = [
     ("janes", "Janes defence headlines", "Military", "military", "outlet", "https://www.janes.com/feeds/news"),
     ("reuters", "Reuters World News", "News", "news", "wire",
      "https://www.reutersagency.com/feed/?best-topics=world-news&post_type=best"),
+    # Prepper blogs whose feed address was missing from the owner's list: guessed as the usual /feed, promote once they read correctly.
+    ("pp-survivalmagazi", "Survival Magazine", "Prepper", "prepper", "outlet", "https://survivalmagazine.org/feed"),
+    ("pp-survivalcache", "SurvivalCache", "Prepper", "prepper", "outlet", "https://survivalcache.com/feed"),
+    ("pp-survivalistpre", "Survivalist Prepper", "Prepper", "prepper", "outlet", "https://survivalistprepper.net/feed"),
+    ("pp-backdoorsurviv", "Backdoor Survival", "Prepper", "prepper", "outlet", "https://backdoorsurvival.com/feed"),
+    ("pp-thevillageprep", "The Village Prepper", "Prepper", "prepper", "outlet", "https://thevillageprepper.com/feed"),
+    ("pp-selfreliantsch", "Self Reliant School", "Prepper", "prepper", "outlet", "https://momwithaprep.com/feed"),
+    ("pp-instinctsurviv", "Instinct Survivalist", "Prepper", "prepper", "outlet", "https://instinctsurvivalist.com/feed"),
+    ("pp-homesteadsurvi", "Homestead Survival Site", "Prepper", "prepper", "outlet", "https://homesteadsurvivalsite.com/feed"),
+    ("pp-masktactical", "Mask Tactical", "Prepper", "prepper", "outlet", "https://masktactical.com/feed"),
+    ("pp-topsurvivalwea", "Top Survival Weapons", "Prepper", "prepper", "outlet", "https://topsurvivalweapons.com/feed"),
+    ("pp-doomandbloom", "Doom and Bloom", "Prepper", "prepper", "outlet", "https://doomandbloom.net/feed"),
+    ("pp-americanpreppi", "American Prepping Academy", "Prepper", "prepper", "outlet", "https://americanpreppingacademy.com/feed"),
+    ("pp-canadianpreppe", "Canadian Preppers Network", "Prepper", "prepper", "outlet", "https://canadianpreppersnetwork.com/feed"),
+    ("pp-ukpreppersguid", "UK Preppers Guide", "Prepper", "prepper", "outlet", "https://ukpreppersguide.co.uk/feed"),
     ("nws-us", "NWS active alerts (all US)", "Hazards", "weather", "official", "https://alerts.weather.gov/cap/us.php?x=0"),
 ]
 
 
 # The Intel page reads the same feeds the Discord bot posted, in the bot's four channels.
 INTEL_CHANNELS = [("military", "Military", ("military",)), ("world", "World news", ("news", "conflict")),
-                  ("cyber", "Cyber", ("cyber",)), ("alerts", "Alerts and weather", ("hazard", "weather", "space", "health"))]
+                  ("cyber", "Cyber", ("cyber",)), ("prepper", "Prepper", ("prepper",)), ("alerts", "Alerts and weather", ("hazard", "weather", "space", "health"))]
 
 
 def intel_channel(item):
@@ -185,7 +225,7 @@ def custom_sources(entries):
     for i, e in enumerate(entries or []):
         if not isinstance(e, dict) or not valid_feed_url(e.get("url")):
             continue
-        kind = e.get("kind") if e.get("kind") in ("military", "conflict", "hazard", "health", "news", "cyber") else "news"
+        kind = e.get("kind") if e.get("kind") in ("military", "conflict", "hazard", "health", "news", "cyber", "prepper") else "news"
         onion = bool(re.search(r"\.onion(?::|/|$)", urlparse(e["url"]).netloc.lower() + "/"))
         out.append(_s(f"custom-{i}", str(e.get("name") or "Custom feed")[:60], "Mine (Tor)" if onion else "Mine", kind,
                       "outlet", e["url"], "rss", 30, "custom", tor=onion))

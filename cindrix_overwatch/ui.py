@@ -29,7 +29,7 @@ def default_root():
 
 
 # What the add-feed form asks for: the same four categories the Intel dashboard uses, and the kind each one files under.
-FEED_CATEGORIES = [("Military", "military"), ("World news", "news"), ("Cyber", "cyber"), ("Alerts and weather", "hazard")]
+FEED_CATEGORIES = [("Military", "military"), ("World news", "news"), ("Cyber", "cyber"), ("Prepper", "prepper"), ("Alerts and weather", "hazard")]
 
 
 def ago(ts, now):
