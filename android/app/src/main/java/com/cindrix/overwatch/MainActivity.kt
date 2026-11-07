@@ -5,6 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 class MainActivity : ComponentActivity() {
@@ -16,7 +19,10 @@ class MainActivity : ComponentActivity() {
         splash.setKeepOnScreenCondition { !vm.ready }
         enableEdgeToEdge()
         setContent {
-            OverwatchTheme { OverwatchApp(vm) }
+            OverwatchTheme {
+                // Without a Surface, text that sets no colour of its own comes out black on the dark panels.
+                Surface(Modifier.fillMaxSize(), color = Ow.Charcoal, contentColor = Ow.Bone) { OverwatchApp(vm) }
+            }
         }
     }
 }
