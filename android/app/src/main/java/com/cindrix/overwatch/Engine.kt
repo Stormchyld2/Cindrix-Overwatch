@@ -278,14 +278,19 @@ class Engine(
 
     private fun ai(): AiClient = AiClient(aiUrl.ifEmpty { throw AiError("Set the AI server address in Settings first.") })
 
-    /** Translates new non-English headlines into English, one at a time. A failure is remembered so it is not retried. */
-    fun autoTranslate(limit: Int = 30): Int {
-        if (aiUrl.isEmpty()) return 0
-        val client = ai()
+    var translateOn: Boolean
+        get() = prefs.getBoolean("translate", true)
+        set(v) { prefs.edit().putBoolean("translate", v).apply() }
+
+    /** Translates new non-English headlines into English with ML Kit. A headline that cannot be translated is remembered; one that could not be tried (offline) is not. */
+    fun autoTranslate(limit: Int = 30, translate: (List<String>) -> List<String?> = MlTranslate::translate): Int {
+        if (!translateOn) return 0
         val todo = allItems(72).filter { it.titleEn.isEmpty() && looksForeign(it.title) && !store.triedTranslation(it.uid) }.take(limit)
+        if (todo.isEmpty()) return 0
         var done = 0
-        for (it in todo) {
-            val t = try { translateWith({ s, u, m, tt, x -> client.chat(s, u, m, tt, x) }, it.title) } catch (e: AiError) { return done }
+        todo.zip(translate(todo.map { it.title })).forEach { (it, r) ->
+            if (r == null) return@forEach
+            val t = cleanTranslation(r, it.title)
             store.setTranslation(it.uid, t, "", clock())
             if (t.isNotEmpty()) done++
         }

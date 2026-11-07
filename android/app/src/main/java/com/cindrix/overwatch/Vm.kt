@@ -40,6 +40,7 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     var message by mutableStateOf("")
     var aiUrl by mutableStateOf(engine.aiUrl)
     var aiNote by mutableStateOf("")
+    var translateOn by mutableStateOf(engine.translateOn)
     var torNote by mutableStateOf("")
 
     init {
@@ -90,18 +91,27 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
 
     /** After a refresh: translate new foreign headlines and place unpinned stories, when an AI server is set. */
     private fun runAiExtras() {
-        if (aiUrl.isEmpty()) return
+        if (aiUrl.isEmpty() && !translateOn) return
         viewModelScope.launch {
             val changed = withContext(Dispatchers.IO) {
-                try { engine.autoTranslate() + engine.autoPin() } catch (e: AiError) { 0 } catch (e: Exception) { 0 }
+                var n = 0
+                try { n += engine.autoTranslate() } catch (e: Exception) { }
+                try { n += engine.autoPin() } catch (e: Exception) { }
+                n
             }
             if (changed > 0) reload()
         }
     }
 
+    fun toggleTranslate() {
+        engine.translateOn = !engine.translateOn
+        translateOn = engine.translateOn
+        if (translateOn) runAiExtras()
+    }
+
     fun saveAiUrl(text: String) {
         val err = engine.setAiUrl(text)
-        aiNote = err ?: if (engine.aiUrl.isEmpty()) "AI is off." else "Saved. New foreign headlines will be translated and unpinned stories placed after the next refresh."
+        aiNote = err ?: if (engine.aiUrl.isEmpty()) "AI is off." else "Saved. Unpinned stories will be placed on the map after the next refresh."
         if (err == null) { aiUrl = engine.aiUrl; if (aiUrl.isNotEmpty()) runAiExtras() }
     }
 

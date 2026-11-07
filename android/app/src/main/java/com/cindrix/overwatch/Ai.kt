@@ -10,7 +10,7 @@ import java.net.URL
  * The optional AI on the phone. A phone cannot run the model, so Overwatch asks a model server you run yourself
  * (the same llama-server the Windows app starts, or any server that speaks the same chat protocol) at an address
  * you type in. It is only ever called when you have set that address, and only on your own network or over https.
- * It is used only to translate foreign headlines and to name the place a story is about; the brief never uses it.
+ * It is used only to name the place a story is about; the brief and the translation never use it.
  */
 class AiError(message: String) : Exception(message)
 
@@ -116,12 +116,6 @@ fun cleanTranslation(out: String?, original: String): String {
     if (t.isEmpty() || t.length > maxOf(60, 4 * original.length)) return ""
     if (Regex("^(translation|here is|here's|sure|certainly)\\b", RegexOption.IGNORE_CASE).containsMatchIn(t) || looksForeign(t)) return ""
     return t.take(300)
-}
-
-fun translateWith(chat: (String, String, Int, Double, JSONObject?) -> String, text: String): String {
-    val out = chat("", "Translate the following text into English. Output only the translation, with no extra explanation:\n\n" + sanitizeHeadline(text, 400), 400, 0.7,
-        JSONObject().put("top_p", 0.6).put("top_k", 20).put("repeat_penalty", 1.05))
-    return cleanTranslation(out, text)
 }
 
 // ----- map pins -----
