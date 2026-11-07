@@ -322,10 +322,19 @@ fun SettingsScreen(vm: OverwatchViewModel) {
             if (vm.torNote.isNotEmpty()) Text(vm.torNote, fontSize = 12.sp, color = Ow.Muted)
         }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Translate foreign headlines", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Uses Google ML Kit. The phone works out the language and translates on the phone. Each language pack (about 30 MB) is " +
+                "downloaded from Google once, then works offline. Only public headlines are translated, and the original stays under the English.", fontSize = 12.sp, color = Ow.Muted)
+            Button(onClick = { vm.toggleTranslate() }, shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = if (vm.translateOn) Ow.Blue else Ow.PanelHigh, contentColor = if (vm.translateOn) Ow.OnBlue else Ow.Bone)) {
+                Text(if (vm.translateOn) "Translation: on" else "Translation: off")
+            }
+        }
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             var aiText by remember { mutableStateOf(vm.aiUrl) }
             Text("AI helper (optional)", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text("A phone cannot run the model. Type the address of a computer on your network that runs one (for example http://192.168.1.20:8080). " +
-                "With it set, Overwatch can translate foreign headlines and place stories on the map. The brief never uses AI. Leave empty to keep the AI off.", fontSize = 12.sp, color = Ow.Muted)
+                "With it set, Overwatch can place stories on the map. The brief and the translation never use it. Leave empty to keep the AI off.", fontSize = 12.sp, color = Ow.Muted)
             OutlinedTextField(aiText, { aiText = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("AI server address") })
             Button(onClick = { vm.saveAiUrl(aiText) }, shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Save") }
