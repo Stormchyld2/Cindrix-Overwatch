@@ -256,6 +256,9 @@ class Engine(
 
     fun unpinItem(uid: String) = store.clearUserPin(uid)
 
+    /** The Top 10 for early warning with the reasons each one is there, for the Intel dashboard. */
+    fun topWarnings(n: Int = 10): List<Pair<Item, List<String>>> = topWarnings(group(allItems(48)), homeStates, clock(), n)
+
     fun indicators(): List<Indicator> = indicators(allItems(24 * 7), homeStates, geo, clock())
 
     fun brief(): String {

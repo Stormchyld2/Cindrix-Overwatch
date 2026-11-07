@@ -37,6 +37,8 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     var deployOn by mutableStateOf(true)
     var mineOn by mutableStateOf(true)
     var channel by mutableStateOf("military")
+    var intelDash by mutableStateOf(true)
+    var top by mutableStateOf<List<Pair<Item, List<String>>>>(emptyList())
     var troopsOnly by mutableStateOf(false)
     var intelSearch by mutableStateOf("")
     /** The story waiting for a tap on the map to be pinned. */
@@ -77,9 +79,10 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
         val count = engine.store.count()
         val hs = engine.homeStates
         val hp = engine.geo.homePoint(hs)
+        val tp = engine.topWarnings()
         withContext(Dispatchers.Main) {
             items = feedItems; indicators = ind; sources = src; newCount = n; prevOpen = prev; lastRefresh = last
-            storedCount = count; home = hs; homePoint = hp
+            storedCount = count; home = hs; homePoint = hp; top = tp
         }
     }
 
@@ -153,6 +156,22 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
             intelChannel(it) == channel && (!troopsOnly || isDeployment(it)) &&
                 (q.isEmpty() || (it.title + " " + it.summary + " " + it.source + " " + it.place).lowercase().contains(q))
         }.take(200)
+    }
+
+    /** What a dashboard panel shows: the newest five, the home area first for alerts. */
+    fun dashRows(id: String): List<Item> {
+        val now = nowSeconds()
+        val l = items.filter { intelChannel(it) == id && now - it.ts <= 48 * 3600 }
+        return (if (id == "alerts") l.sortedWith(compareBy<Item>({ !isHome(it, home) }, { -it.severity }, { -it.ts })) else l).take(5)
+    }
+
+    fun troopRows(): List<Item> {
+        val now = nowSeconds()
+        return items.filter { isDeployment(it) && now - it.ts <= 24 * 3600 }.take(5)
+    }
+
+    fun seeAll(id: String, troops: Boolean = false) {
+        channel = id; troopsOnly = troops; intelSearch = ""; intelDash = false
     }
 
     fun channelCount(id: String): Int = items.count { intelChannel(it) == id }

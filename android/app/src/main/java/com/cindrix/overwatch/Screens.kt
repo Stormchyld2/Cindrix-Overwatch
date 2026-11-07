@@ -200,11 +200,13 @@ fun SelectedCard(vm: OverwatchViewModel) {
 fun IntelScreen(vm: OverwatchViewModel) {
     val reading = vm.reader
     if (reading != null) { ReaderView(vm, reading); return }
+    if (vm.intelDash) { DashboardScreen(vm); return }
     val ctx = LocalContext.current
     val list = vm.intelList()
     Column(Modifier.fillMaxSize()) {
         LazyRow(Modifier.padding(top = 8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            item { FilterChip(selected = false, onClick = { vm.intelDash = true }, label = { Text("← Dashboard") }) }
             items(INTEL_CHANNELS) { c ->
                 FilterChip(selected = vm.channel == c.id, onClick = { vm.channel = c.id }, label = { Text("${c.label} (${vm.channelCount(c.id)})") })
             }
@@ -218,6 +220,68 @@ fun IntelScreen(vm: OverwatchViewModel) {
         LazyColumn(Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(list, key = { it.uid }) { item -> IntelCard(vm, item) { openUrl(ctx, item.url) } }
         }
+    }
+}
+
+@Composable
+fun DashboardScreen(vm: OverwatchViewModel) {
+    val pad = androidx.compose.foundation.layout.PaddingValues(10.dp)
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { items(vm.indicators) { IndicatorTile(it) } }
+        }
+        item {
+            DashPanel("TOP 10 FOR EARLY WARNING", Ow.Blue, "", null) {
+                if (vm.top.isEmpty()) Text("Nothing here yet. Tap Refresh while online.", fontSize = 12.sp, color = Ow.Muted)
+                vm.top.forEachIndexed { k, (item, why) -> DashRow(vm, item, rank = k + 1, reasons = why) }
+            }
+        }
+        item {
+            val rows = vm.troopRows()
+            DashPanel("TROOP MOVEMENTS", Ow.Amber, "${rows.size} in 24 h", { vm.seeAll("military", troops = true) }) {
+                if (rows.isEmpty()) Text("No deployment signals in the last 24 hours.", fontSize = 12.sp, color = Ow.Muted)
+                rows.forEach { DashRow(vm, it) }
+            }
+        }
+        for (c in INTEL_CHANNELS) {
+            item(key = "panel-" + c.id) {
+                val rows = vm.dashRows(c.id)
+                DashPanel(c.label.uppercase(), Ow.kindColor(c.kinds.first()), vm.channelCount(c.id).toString(), { vm.seeAll(c.id) }) {
+                    if (rows.isEmpty()) Text("Nothing here yet.", fontSize = 12.sp, color = Ow.Muted)
+                    rows.forEach { DashRow(vm, it) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DashPanel(title: String, color: Color, count: String, onSeeAll: (() -> Unit)?, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Ow.Panel).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(color))
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
+            if (count.isNotEmpty()) Text(count, fontSize = 11.sp, color = Ow.Muted)
+            if (onSeeAll != null) TextButton(onClick = onSeeAll, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)) { Text("See all →", fontSize = 12.sp) }
+        }
+        content()
+    }
+}
+
+@Composable
+fun DashRow(vm: OverwatchViewModel, item: Item, rank: Int? = null, reasons: List<String> = emptyList()) {
+    val col = Ow.kindColor(item.kind)
+    val tags = (reasons.ifEmpty { if (isDeployment(item)) listOf("troop movement") else emptyList() } + if (!item.pinned) listOf("not on map") else emptyList()).take(3)
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (rank != null) Ow.PanelHigh else Ow.Panel).clickable { vm.openReader(item) }
+        .padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (rank != null) Text(rank.toString(), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = col, modifier = Modifier.width(26.dp))
+        Column(Modifier.weight(1f)) {
+            Text(item.shown, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 3)
+            Text("${item.source}  ·  ${ago(item.ts, nowSeconds())}", fontSize = 11.sp, color = Ow.Muted)
+            if (tags.isNotEmpty()) Text(tags.joinToString("  ·  ") { it.uppercase() }, fontSize = 10.sp,
+                color = if (tags.any { it == "troop movement" || it == "force movement" }) Ow.Amber else Ow.Blue)
+        }
+        if (!item.pinned && item.kind != Kind.CYBER) TextButton(onClick = { vm.startPin(item) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) { Text("Pin", fontSize = 12.sp) }
     }
 }
 
