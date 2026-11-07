@@ -16,9 +16,18 @@ class IntelPage:
         self.channel = "military"
         self.deploy_only = False
         self.search = tk.StringVar()
-        self.search.trace_add("write", lambda *a: self.render())
+        self.search.trace_add("write", lambda *a: self.render_reading())
         self.items, self.item = [], None
-        self._build(parent)
+        self.mode = "dash"
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(0, weight=1)
+        self.dash_frame = tk.Frame(parent, bg=theme.CHARCOAL)
+        self.reading = tk.Frame(parent, bg=theme.CHARCOAL)
+        for f in (self.dash_frame, self.reading):
+            f.grid(row=0, column=0, sticky="nsew")
+        self._build(self.reading)
+        self._build_dash(self.dash_frame)
+        self.dash_frame.tkraise()
 
     # ----- layout -----
     def _build(self, p):
@@ -43,7 +52,8 @@ class IntelPage:
                      font=a.f_body, highlightthickness=1, highlightbackground=theme.OUTLINE, highlightcolor=theme.BLUE)
         e.pack(fill="x", padx=12, pady=(10, 4), ipady=5)
         a.label(left, "Search these articles", a.f_small, theme.MUTED).pack(fill="x", padx=14)
-        a.btn(left, "Open the Brief", lambda: a.show_page("brief"), small=True).pack(fill="x", padx=12, pady=(16, 4))
+        a.btn(left, "\u2190 Dashboard", self.go_dash, small=True, primary=True).pack(fill="x", padx=12, pady=(16, 4))
+        a.btn(left, "Open the Brief", lambda: a.show_page("brief"), small=True).pack(fill="x", padx=12, pady=(4, 4))
         self.note = a.label(left, "", a.f_small, theme.MUTED, justify="left", wraplength=200)
         self.note.pack(fill="x", padx=14, pady=8)
         # article list
@@ -94,19 +104,198 @@ class IntelPage:
         self.pin_note = a.label(right, "", a.f_small, theme.MUTED, justify="left", wraplength=520)
         self.pin_note.grid(row=6, column=0, sticky="ew", padx=14, pady=(0, 10))
 
+
+    # ----- the dashboard -----
+    def _build_dash(self, d):
+        a = self.app
+        d.columnconfigure(0, weight=1)
+        d.rowconfigure(0, weight=1)
+        canvas = tk.Canvas(d, bg=theme.CHARCOAL, highlightthickness=0)
+        sb = ttk.Scrollbar(d, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        sb.grid(row=0, column=1, sticky="ns")
+        body = tk.Frame(canvas, bg=theme.CHARCOAL)
+        win = canvas.create_window(0, 0, window=body, anchor="nw")
+        body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(win, width=e.width))
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", lambda ev: canvas.yview_scroll(-1 if ev.delta > 0 else 1, "units")))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+        self.dash_canvas = canvas
+        body.columnconfigure(0, weight=2, uniform="dash")
+        body.columnconfigure(1, weight=1, uniform="dash")
+        body.columnconfigure(2, weight=1, uniform="dash")
+        # status lights
+        strip = tk.Frame(body, bg=theme.CHARCOAL)
+        strip.grid(row=0, column=0, columnspan=3, sticky="ew", padx=10, pady=(10, 6))
+        self.d_tiles = []
+        for i in range(9):
+            strip.columnconfigure(i, weight=1, uniform="dtile")
+            t = tk.Frame(strip, bg=theme.PANEL)
+            t.grid(row=0, column=i, sticky="nsew", padx=4)
+            bar = tk.Frame(t, bg=theme.GREEN, height=3)
+            bar.pack(fill="x")
+            name = a.label(t, "", a.f_small, theme.MUTED)
+            name.pack(fill="x", padx=8, pady=(5, 0))
+            word = a.label(t, "", a.f_head)
+            word.pack(fill="x", padx=8)
+            note = a.label(t, "", a.f_small, theme.MUTED)
+            note.pack(fill="x", padx=8, pady=(0, 5))
+            self.d_tiles.append((bar, name, word, note))
+        # Top 10 (left, tall) and the channel panels
+        self.d_top = self._panel(body, "TOP 10 FOR EARLY WARNING", theme.BLUE, 1, 0, rowspan=3, link=("Open the Brief", lambda: a.show_page("brief")))
+        self.d_panels = {}
+        specs = (("troops", "TROOP MOVEMENTS", theme.AMBER, 1, 1, 2, None),
+                 ("military", "MILITARY", theme.BLUE, 2, 1, 1, "military"),
+                 ("world", "WORLD NEWS", theme.MUTED, 2, 2, 1, "world"),
+                 ("cyber", "CYBER", theme.KIND_COLORS["cyber"], 3, 1, 1, "cyber"),
+                 ("alerts", "ALERTS AND WEATHER", theme.AMBER, 3, 2, 1, "alerts"))
+        for key, title, col, r, c, span, chan in specs:
+            if key == "troops":
+                link = ("See all \u2192", lambda: self.go_reading("military", deploy=True))
+            else:
+                link = ("See all \u2192", lambda ch=chan: self.go_reading(ch))
+            self.d_panels[key] = self._panel(body, title, col, r, c, colspan=span, link=link)
+        for r in (1, 2, 3):
+            body.rowconfigure(r, weight=1)
+        self.d_foot = a.label(body, "Click a headline to read it. Pin stories that are not on the map, with a click on the map or a typed place.",
+                              a.f_small, theme.MUTED)
+        self.d_foot.grid(row=4, column=0, columnspan=3, sticky="w", padx=14, pady=(2, 12))
+
+    def _panel(self, parent, title, color, row, col, rowspan=1, colspan=1, link=None):
+        a = self.app
+        outer = tk.Frame(parent, bg=theme.PANEL)
+        outer.grid(row=row, column=col, rowspan=rowspan, columnspan=colspan, sticky="nsew", padx=6, pady=6)
+        head = tk.Frame(outer, bg=theme.PANEL)
+        head.pack(fill="x", padx=14, pady=(12, 4))
+        tk.Frame(head, bg=color, width=10, height=10).pack(side="left", padx=(0, 8))
+        tk.Label(head, text=title, font=a.f_head, fg=theme.BONE, bg=theme.PANEL).pack(side="left")
+        count = tk.Label(head, text="", font=a.f_small, fg=theme.MUTED, bg=theme.PANEL)
+        count.pack(side="left", padx=8)
+        if link:
+            b = tk.Label(head, text=link[0], font=a.f_small, fg=theme.BLUE, bg=theme.PANEL, cursor="hand2")
+            b.pack(side="right")
+            b.bind("<Button-1>", lambda e, f=link[1]: f())
+        body = tk.Frame(outer, bg=theme.PANEL)
+        body.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        body.labels = []
+        body.count = count
+        body.bind("<Configure>", lambda e, b=body: [l.configure(wraplength=max(120, e.width - 110)) for l in b.labels])
+        return body
+
+    def _dash_rows(self, body, entries, numbered=False):
+        """entries: list of (item, reasons). Each row opens the reader; unpinned ones get a Pin button."""
+        a = self.app
+        from .scoring import is_deployment
+        from .ui import ago
+        for w in body.winfo_children():
+            w.destroy()
+        body.labels = []
+        if not entries:
+            a.label(body, "Nothing here yet. Press Refresh now while online.", a.f_small, theme.MUTED, bg=theme.PANEL).pack(fill="x", padx=6, pady=8)
+            return
+        now = self.c.now()
+        for k, (it, reasons) in enumerate(entries, 1):
+            col = theme.KIND_COLORS.get(it.kind, theme.MUTED)
+            row = tk.Frame(body, bg=theme.PANEL_HIGH if numbered else theme.PANEL, cursor="hand2")
+            row.pack(fill="x", pady=2)
+            if numbered:
+                tk.Label(row, text=str(k), font=a.f_big, fg=col, bg=theme.PANEL_HIGH, width=2).pack(side="left", padx=(6, 2))
+            box = tk.Frame(row, bg=row["bg"])
+            box.pack(side="left", fill="x", expand=True, padx=6, pady=5)
+            t = tk.Label(box, text=it.shown, font=a.f_bold, fg=theme.BONE, bg=row["bg"], anchor="w", justify="left", wraplength=360)
+            t.pack(fill="x")
+            body.labels.append(t)
+            meta = tk.Frame(box, bg=row["bg"])
+            meta.pack(fill="x")
+            tk.Label(meta, text=f"{it.source}  \u00b7  {ago(it.ts, now)}", font=a.f_small, fg=theme.MUTED, bg=row["bg"]).pack(side="left")
+            tags = list(reasons) if numbered else []
+            if not numbered and is_deployment(it):
+                tags.append("troop movement")
+            if not it.pinned:
+                tags.append("not on map")
+            for text in tags:
+                tk.Label(meta, text=text.upper(), font=a.f_small, fg=theme.AMBER if text in ("force movement", "troop movement") else theme.BLUE,
+                         bg=theme.CHARCOAL, padx=5).pack(side="left", padx=(6, 0))
+            if not it.pinned and it.kind != "cyber":
+                pb = tk.Label(row, text="Pin", font=a.f_small, fg=theme.ON_BLUE, bg=theme.BLUE, padx=8, pady=2, cursor="hand2")
+                pb.pack(side="right", padx=6)
+                pb._no_open = True
+                pb.bind("<Button-1>", lambda e, i=it: self.app.begin_pin(i, self._pinned_dash))
+
+            def bind(w, i=it):
+                if getattr(w, "_no_open", False):
+                    return
+                w.bind("<Button-1>", lambda e, i=i: self.go_reading(self._channel_of(i), i))
+                for ch in w.winfo_children():
+                    bind(ch, i)
+            bind(row)
+
+    def _channel_of(self, it):
+        return sources.intel_channel(it)
+
+    def _pinned_dash(self, name=""):
+        self.app.refresh_view()
+        self.render_dash()
+
+    def render_dash(self):
+        from .scoring import is_deployment, is_home
+        c = self.c
+        for (bar, name, word, note), (iid, label, lvl, w, n) in zip(self.d_tiles, c.indicators()):
+            col = theme.LEVEL_COLORS[lvl]
+            bar.configure(bg=col)
+            name.configure(text=label.upper())
+            word.configure(text=w, fg=col)
+            note.configure(text=n)
+        self._dash_rows(self.d_top, c.top_warnings(10), numbered=True)
+        self.d_top.count.configure(text="")
+        home = c.settings.get("home_states") or []
+        day = c.feed(limit=1000, hours=24)
+        troops = [i for i in day if is_deployment(i)][:5]
+        self._dash_rows(self.d_panels["troops"], [(i, []) for i in troops])
+        self.d_panels["troops"].count.configure(text=f"{len(troops)} in 24 h")
+        for key in ("military", "world", "cyber", "alerts"):
+            items = c.feed(channel=key, limit=1000, hours=48)
+            if key == "alerts":     # home alerts first, then the most serious
+                items.sort(key=lambda i: (not is_home(i, home), -i.severity, -i.ts))
+            self._dash_rows(self.d_panels[key], [(i, []) for i in items[:5]])
+            self.d_panels[key].count.configure(text=str(len(items)))
+        self.dash_canvas.yview_moveto(0)
+
     # ----- the list -----
     def set_channel(self, key):
         self.channel = key
-        self.render()
+        self.render_reading()
 
     def toggle_deploy(self):
         self.deploy_only = not self.deploy_only
-        self.render()
+        self.render_reading()
 
     def show(self):
         self.render()
 
     def render(self):
+        if self.mode == "dash":
+            self.render_dash()
+        else:
+            self.render_reading()
+
+    def go_dash(self):
+        self.mode = "dash"
+        self.dash_frame.tkraise()
+        self.render_dash()
+
+    def go_reading(self, channel=None, item=None, deploy=False):
+        self.mode = "reading"
+        if channel:
+            self.channel = channel
+        self.deploy_only = deploy
+        self.reading.tkraise()
+        self.render_reading()
+        if item is not None:
+            self.open_item(item)
+
+    def render_reading(self):
         a = self.app
         for key, b in self.chan_btns.items():
             n = len(self.c.feed(channel=key, limit=1000, hours=48))
@@ -236,7 +425,7 @@ class IntelPage:
     def _pinned(self, name=""):
         self.pin_note.configure(text=f"Pinned{(' at ' + name) if name else ''}. It stays until you remove it.", fg=theme.MUTED)
         self.app.refresh_view()
-        self.render()
+        self.render_reading()
         if self.item:
             fresh = next((i for i in self.c.all_items(72) if i.uid == self.item.uid), None)
             if fresh:
@@ -248,4 +437,4 @@ class IntelPage:
             self.c.unpin_item(self.item.uid)
             self.pin_note.configure(text="Your pin was removed.", fg=theme.MUTED)
             self.app.refresh_view()
-            self.render()
+            self.render_reading()

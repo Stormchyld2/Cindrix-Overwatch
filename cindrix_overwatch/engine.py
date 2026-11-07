@@ -322,6 +322,10 @@ class Controller:
     def all_items(self, hours=72):
         return self.store.items(self.now() - hours * 3600)
 
+    def top_warnings(self, n=10):
+        """The Top 10 for early warning, as (item, reasons), for the Intel dashboard."""
+        return scoring.top_warnings(scoring.group(self.all_items(48)), self.settings["home_states"], self.now(), n=n)
+
     # ----- pins the owner places by hand -----
     def pin_item(self, uid, lat, lon, place="Pinned by you"):
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):

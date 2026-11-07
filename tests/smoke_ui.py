@@ -78,6 +78,23 @@ def main():
             app.show_page(page)
             pump(app, 0.1)
         assert "Status lights" in app.brief_text.get("1.0", "end")
+        # the Intel dashboard: status lights, the Top 10, the channel panels, then into the reader and back
+        app.show_page("intel")
+        pump(app, 0.2)
+        intel = app.intel
+        assert intel.mode == "dash"
+        assert intel.d_tiles[0][2].cget("text"), "dashboard status lights empty"
+        assert intel.d_top.winfo_children(), "Top 10 panel empty"
+        assert any(b.winfo_children() for b in intel.d_panels.values()), "channel panels empty"
+        first = c.top_warnings(10)
+        assert first, "no early warning items"
+        intel.go_reading(None, first[0][0])
+        pump(app, 0.2)
+        assert intel.mode == "reading"
+        assert first[0][0].shown in intel.r_title.cget("text")
+        intel.go_dash()
+        pump(app, 0.2)
+        assert intel.mode == "dash"
         app.show_page("settings")
         assert len(app.tree.get_children()) >= 15, len(app.tree.get_children())
         assert len(app.onion_tree.get_children()) >= 8
