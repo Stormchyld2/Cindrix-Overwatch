@@ -1107,6 +1107,8 @@ class App:
     def _quit(self):
         try:
             self.watchtower.shutdown()
+            if getattr(self, "link_server", None):
+                self.link_server.stop()
         finally:
             self.root.destroy()
 

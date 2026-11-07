@@ -1269,3 +1269,88 @@ class CamStatusTests(unittest.TestCase):
             self.assertEqual(c2.watchtower()["slots"], ["a", "b"])
         finally:
             c2.close()
+
+
+class LinkTests(unittest.TestCase):
+    def test_code_roundtrip_and_rejects_junk(self):
+        from cindrix_overwatch import link
+        t = link.new_token()
+        self.assertEqual(len(t), 16)
+        code = link.make_code("192.168.1.50", "10.66.66.2", 8099, t)
+        self.assertEqual(link.parse_code(code), ("192.168.1.50", "10.66.66.2", 8099, t))
+        self.assertEqual(link.parse_code(link.make_code(None, "10.66.66.2", 8099, t)), (None, "10.66.66.2", 8099, t))
+        for bad in ("", "nonsense", "OW2/a/b/1/T", "OW1/a/b/x/T", "OW1/a/b/8099/T-T"):
+            self.assertIsNone(link.parse_code(bad), bad)
+
+    def test_ports_are_steady_and_unique(self):
+        from cindrix_overwatch import link
+        ports = {}
+        a, b = link.assign_port(ports, "a"), link.assign_port(ports, "b")
+        self.assertNotEqual(a, b)
+        self.assertEqual(link.assign_port(ports, "a"), a)
+        self.assertNotIn(link.SYNC_PORT, (a, b))
+
+    def test_relay_passes_bytes_both_ways(self):
+        from cindrix_overwatch import link
+        echo = socket.socket()
+        echo.bind(("127.0.0.1", 0))
+        echo.listen(1)
+
+        def serve():
+            c, _ = echo.accept()
+            c.sendall(c.recv(100)[::-1])
+            c.close()
+        threading.Thread(target=serve, daemon=True).start()
+        r = link.Relay(0, lambda: ("127.0.0.1", echo.getsockname()[1]), "127.0.0.1")
+        r.start()
+        try:
+            c = socket.create_connection(("127.0.0.1", r.port), timeout=3)
+            c.sendall(b"hello")
+            self.assertEqual(c.recv(100), b"olleh")
+            c.close()
+        finally:
+            r.close()
+            echo.close()
+
+    def test_sync_page_needs_the_code_and_locks_out_guessing(self):
+        import json as _j
+        import urllib.error
+        import urllib.request
+        from cindrix_overwatch import link
+        cams = [{"id": "a1", "name": "Front", "brand": "reolink", "main": "rtsp://192.168.1.20:554/Preview_01_main",
+                 "sub": "rtsp://192.168.1.20:554/Preview_01_sub", "user": "admin", "password": "pw", "enabled": True}]
+        ports = {}
+        srv = link.LinkServer(lambda: cams, lambda i: link.assign_port(ports, i), "GOODTOKEN123456", sync_port=0, bind="127.0.0.1")
+        srv.start()
+        base = f"http://127.0.0.1:{srv.sync_port}"
+        try:
+            self.assertEqual(_j.load(urllib.request.urlopen(base + "/v1/hello"))["overwatch"], 1)
+            got = _j.load(urllib.request.urlopen(base + "/v1/cameras?token=GOODTOKEN123456"))
+            cam = got["cameras"][0]
+            self.assertEqual((cam["name"], cam["main"]["path"], cam["user"], cam["port"]), ("Front", "/Preview_01_main", "admin", ports["a1"]))
+            for _ in range(link.LinkServer.FAIL_LIMIT):
+                with self.assertRaises(urllib.error.HTTPError) as cm:
+                    urllib.request.urlopen(base + "/v1/cameras?token=WRONG")
+                self.assertEqual(cm.exception.code, 403)
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                urllib.request.urlopen(base + "/v1/cameras?token=GOODTOKEN123456")
+            self.assertEqual(cm.exception.code, 429)
+        finally:
+            srv.stop()
+
+    def test_vpn_ip_is_none_without_a_vpn(self):
+        from cindrix_overwatch import link
+        self.assertIsNone(link.vpn_ip("203.0.113."))
+
+    def test_controller_link_settings(self):
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        try:
+            self.assertFalse(c.link()["enabled"])
+            l = c.set_link_enabled(True)
+            self.assertEqual(len(l["token"]), 16)
+            p = c.link_port("x")
+            self.assertEqual(c.link_port("x"), p)
+            old = l["token"]
+            self.assertNotEqual(c.new_link_code(), old)
+        finally:
+            c.close()

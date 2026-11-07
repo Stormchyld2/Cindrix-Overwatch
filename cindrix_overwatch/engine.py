@@ -20,7 +20,7 @@ from .store import Store
 MAX_BYTES = 5_000_000
 KEEP_DAYS = 30
 DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15,
-                    "onion_addresses": {}, "my_outlets": [], "cameras": [], "watchtower": {}, "ai_root": "", "ai_enabled": False,
+                    "onion_addresses": {}, "my_outlets": [], "cameras": [], "watchtower": {}, "link": {}, "ai_root": "", "ai_enabled": False,
                     "ai_engine": "", "ai_model": "auto", "auto_translate": True, "ai_pins": True, "ai_focus": True, "ai_instructions": ""}
 
 
@@ -247,6 +247,43 @@ class Controller:
         w.update(kw)
         self.settings["watchtower"] = w
         self.save_settings()
+
+    def link(self):
+        """Phone link settings: whether it is on, the pairing token, and the relay port each camera keeps."""
+        l = dict(self.settings.get("link") or {})
+        l["enabled"] = bool(l.get("enabled", False))
+        l.setdefault("token", "")
+        l["ports"] = dict(l.get("ports") or {})
+        return l
+
+    def set_link_enabled(self, on):
+        from . import link as _link
+        l = self.link()
+        l["enabled"] = bool(on)
+        if on and not l["token"]:
+            l["token"] = _link.new_token()
+        self.settings["link"] = l
+        self.save_settings()
+        return l
+
+    def new_link_code(self):
+        """Makes a new token. Phones paired with the old one stop working."""
+        from . import link as _link
+        l = self.link()
+        l["token"] = _link.new_token()
+        self.settings["link"] = l
+        self.save_settings()
+        return l["token"]
+
+    def link_port(self, cam_id):
+        from . import link as _link
+        l = self.link()
+        before = dict(l["ports"])
+        port = _link.assign_port(l["ports"], cam_id)
+        if l["ports"] != before:
+            self.settings["link"] = l
+            self.save_settings()
+        return port
 
     def remove_camera(self, cam_id):
         self.settings["cameras"] = [c for c in self.settings["cameras"] if c["id"] != cam_id]

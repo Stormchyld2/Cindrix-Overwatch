@@ -4,7 +4,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from . import cameras, theme
+from . import cameras, link as _link, theme
 
 TIER_COLORS = {"works": theme.GREEN, "enable": theme.BLUE, "some": theme.AMBER, "no": theme.RED}
 TIER_FILTERS = [("All", None), ("Works", "works"), ("Turn it on first", "enable"), ("Some models", "some"), ("Not supported", "no")]
@@ -12,7 +12,7 @@ TIER_FILTERS = [("All", None), ("Works", "works"), ("Turn it on first", "enable"
 
 def build_tab(app, p):
     p.columnconfigure(0, weight=1)
-    p.rowconfigure(2, weight=1)
+    p.rowconfigure(3, weight=1)
     head = tk.Frame(p, bg=theme.CHARCOAL)
     head.grid(row=0, column=0, sticky="ew", padx=14, pady=(12, 0))
     app.label(head, "Watchtower: your cameras", app.f_big).pack(side="left")
@@ -56,9 +56,10 @@ def build_tab(app, p):
             app.wt_hint.configure(text=(b.get("setup") or b.get("note") or ""))
     cb.bind("<<ComboboxSelected>>", picked)
     picked()
+    _build_link(app, p)
     # the list
     box = tk.Frame(p, bg=theme.CHARCOAL)
-    box.grid(row=2, column=0, sticky="nsew", padx=14, pady=(0, 10))
+    box.grid(row=3, column=0, sticky="nsew", padx=14, pady=(0, 10))
     box.rowconfigure(0, weight=1)
     box.columnconfigure(0, weight=1)
     cv = tk.Canvas(box, bg=theme.CHARCOAL, highlightthickness=0)
@@ -91,6 +92,8 @@ def render(app):
     wt = getattr(app, "watchtower", None)
     if wt:
         wt.refresh()
+    if getattr(app, "link_server", None) is not None:
+        app.link_server.sync_relays()
     for w in app.wt_list.winfo_children():
         w.destroy()
     app.wt_rows = {}
@@ -229,3 +232,85 @@ class SupportedWindow:
                      wraplength=760).pack(fill="x", padx=12, pady=(2, 8))
         if not shown:
             tk.Label(self.inner, text="Nothing matches. Try another word or filter.", font=a.f_small, fg=theme.MUTED, bg=theme.CHARCOAL).pack(pady=20)
+
+
+# ----- phone link -----
+def _build_link(app, p):
+    card = tk.Frame(p, bg=theme.PANEL)
+    card.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 8))
+    card.columnconfigure(1, weight=1)
+    app.label(card, "Phone link: watch from away from home", app.f_bold).grid(row=0, column=0, columnspan=4, sticky="w", padx=12, pady=(10, 2))
+    app.label(card, "Lets the Overwatch phone app reach these cameras through your CindrixVPN server. The cameras themselves stay off the internet.",
+              app.f_small, theme.MUTED).grid(row=1, column=0, columnspan=4, sticky="w", padx=12)
+    app.link_on = tk.BooleanVar(value=app.c.link()["enabled"])
+    tk.Checkbutton(card, text="Let my phone watch from anywhere", variable=app.link_on, command=lambda: link_toggle(app), bg=theme.PANEL, fg=theme.BONE,
+                   selectcolor=theme.CHARCOAL, activebackground=theme.PANEL, activeforeground=theme.BONE, font=app.f_body).grid(
+        row=2, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 2))
+    app.link_code_var = tk.StringVar()
+    app.label(card, "Pairing code", app.f_small, theme.MUTED).grid(row=3, column=0, sticky="w", padx=12)
+    app.link_entry = tk.Entry(card, textvariable=app.link_code_var, state="readonly", readonlybackground=theme.CHARCOAL, fg=theme.BONE, relief="flat")
+    app.link_entry.grid(row=3, column=1, sticky="ew", padx=(6, 6), ipady=4)
+    app.btn(card, "Copy", lambda: link_copy(app), small=True).grid(row=3, column=2, padx=2)
+    app.btn(card, "Make a new code", lambda: link_new_code(app), small=True).grid(row=3, column=3, padx=(2, 12))
+    app.link_status = tk.Label(card, text="", font=app.f_small, fg=theme.MUTED, bg=theme.PANEL, justify="left", anchor="w", wraplength=1000)
+    app.link_status.grid(row=4, column=0, columnspan=4, sticky="w", padx=12, pady=(4, 10))
+    app.link_server = None
+    link_apply(app)
+
+
+def link_apply(app):
+    """Starts or stops the relays to match the switch, and updates the pairing code and the status line."""
+    s = app.c.link()
+    srv = getattr(app, "link_server", None)
+    err = ""
+    if s["enabled"] and srv is None:
+        try:
+            srv = app.link_server = _link.LinkServer(lambda: [c for c in app.c.cameras() if c.get("enabled", True)], app.c.link_port, s["token"])
+            srv.start()
+        except OSError as e:
+            app.link_server = srv = None
+            err = f"Could not start the phone link ({e}). Is another program using port {_link.SYNC_PORT}?"
+    elif s["enabled"] and srv is not None:
+        srv.token = s["token"]
+        srv.sync_relays()
+    elif not s["enabled"] and srv is not None:
+        srv.stop()
+        app.link_server = srv = None
+    link_status(app, err)
+
+
+def link_status(app, err=""):
+    s = app.c.link()
+    lan, vpn = _link.lan_ip(), _link.vpn_ip()
+    if not s["enabled"]:
+        app.link_code_var.set("")
+        app.link_status.configure(text="Off. Nothing is listening for the phone.", fg=theme.MUTED)
+        return
+    app.link_code_var.set(_link.make_code(lan, vpn, _link.SYNC_PORT, s["token"]))
+    if err:
+        app.link_status.configure(text=err, fg=theme.RED)
+    elif vpn:
+        app.link_status.configure(text=f"On. CindrixVPN is connected (this PC is {vpn}). Paste the code into Overwatch on your phone, in Settings > Watchtower. "
+                                       "Windows may ask to let Overwatch use private networks: say yes.", fg=theme.GREEN)
+    else:
+        app.link_status.configure(text="On, but CindrixVPN is not connected on this PC, so the phone can only reach it at home. Connect CindrixVPN to the "
+                                       "same server as the phone to watch from away.", fg=theme.AMBER)
+
+
+def link_toggle(app):
+    app.c.set_link_enabled(app.link_on.get())
+    link_apply(app)
+
+
+def link_new_code(app):
+    app.c.new_link_code()
+    link_apply(app)
+    app.link_status.configure(text="New code made. Phones paired with the old code no longer work. Paste the new one into each phone.", fg=theme.AMBER)
+
+
+def link_copy(app):
+    code = app.link_code_var.get()
+    if code:
+        app.root.clipboard_clear()
+        app.root.clipboard_append(code)
+        app.link_status.configure(text="Code copied. Paste it into Overwatch on your phone.", fg=theme.GREEN)

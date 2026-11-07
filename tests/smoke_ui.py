@@ -159,6 +159,18 @@ def main():
         ui_cameras._remove(app, cid)
         assert not c.cameras()
 
+        # phone link: switching it on opens the sync page and makes a code; switching off closes it
+        from cindrix_overwatch import link as _lk
+        app.link_on.set(True)
+        ui_cameras.link_toggle(app)
+        assert app.link_server is not None and _lk.parse_code(app.link_code_var.get()), app.link_code_var.get()
+        old_code = app.link_code_var.get()
+        ui_cameras.link_new_code(app)
+        assert app.link_code_var.get() != old_code
+        app.link_on.set(False)
+        ui_cameras.link_toggle(app)
+        assert app.link_server is None and not app.link_code_var.get()
+
         # Watchtower viewer: tiles, offline screen, dock picker, modes (live pictures only when ffmpeg is here)
         import os, subprocess, tempfile as _tf
         from cindrix_overwatch import camview
