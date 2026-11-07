@@ -75,6 +75,7 @@ fun OverwatchApp(vm: OverwatchViewModel) {
     val cam = remember { MapCamera() }
     Column(Modifier.fillMaxSize().background(Ow.Charcoal).windowInsetsPadding(WindowInsets.systemBars)) {
         TopBar(vm)
+        if (vm.showDefcon) DefconDialog(vm)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (vm.tab) {
                 0 -> MapScreen(vm, cam)
@@ -112,10 +113,66 @@ fun TopBar(vm: OverwatchViewModel) {
                 },
                 fontSize = 11.sp, color = if (offline) Ow.Amber else Ow.Muted,
             )
+            if (vm.tab != 5) DefconChips(vm, now)
         }
         Button(onClick = { vm.refresh(true) }, enabled = !vm.refreshing, shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Refresh") }
     }
+}
+
+private fun defconColor(level: Int) = when (level) {
+    5 -> Ow.Green; 4 -> Color(0xFFA8C84A); 3 -> Ow.Amber; 2 -> Ow.Orange; else -> Ow.Red
+}
+
+/** The DEFCON readings under the title on every screen except Settings: Overwatch's estimate and the public tracker's. */
+@Composable
+fun DefconChips(vm: OverwatchViewModel, now: Double) {
+    val e = vm.defconEst ?: return
+    val p = vm.defconPub
+    val old = p?.old(now) == true
+    Row(Modifier.padding(top = 4.dp).clickable { vm.showDefcon = true }, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("DEFCON ${e.level} est.", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Ow.OnBlue,
+            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(defconColor(e.level)).padding(horizontal = 6.dp, vertical = 2.dp))
+        if (p != null) {
+            Text("DEFCON ${p.level} public" + if (old) " (old)" else "", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                color = if (old) Ow.Muted else Ow.OnBlue,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if (old) Ow.PanelHigh else defconColor(p.level)).padding(horizontal = 6.dp, vertical = 2.dp))
+        } else {
+            Text("Public: not read yet", fontSize = 11.sp, color = Ow.Muted,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Ow.PanelHigh).padding(horizontal = 6.dp, vertical = 2.dp))
+        }
+    }
+}
+
+@Composable
+fun DefconDialog(vm: OverwatchViewModel) {
+    val e = vm.defconEst ?: return
+    val p = vm.defconPub
+    val now = nowSeconds()
+    AlertDialog(
+        onDismissRequest = { vm.showDefcon = false },
+        confirmButton = { TextButton(onClick = { vm.showDefcon = false }) { Text("Close") } },
+        title = { Text("DEFCON") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Overwatch estimate: DEFCON ${e.level}", fontWeight = FontWeight.Bold, color = defconColor(e.level))
+                Text(Defcon.WORDS[e.level] ?: "", fontSize = 12.sp, color = Ow.Muted)
+                Text("Worked out from the status lights, so it follows how much is being reported:", fontSize = 12.sp)
+                e.reasons.forEach { Text("\u2022 $it", fontSize = 12.sp, color = Ow.Muted) }
+                Spacer(Modifier.height(8.dp))
+                if (p != null) {
+                    Text("Public tracker: DEFCON ${p.level}", fontWeight = FontWeight.Bold, color = defconColor(p.level))
+                    Text("defconlevel.com, its update: ${p.updated.ifEmpty { "not stated" }}. Read by Overwatch ${ago(p.fetched, now)}." +
+                        if (p.old(now)) " This reading is more than six hours old." else "", fontSize = 12.sp, color = Ow.Muted)
+                } else {
+                    Text("Public tracker: not read yet (needs the internet; it is read on each refresh).", fontSize = 12.sp, color = Ow.Muted)
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("Neither number is official. The real DEFCON level is not published. The estimate is Overwatch's own reading of the news it " +
+                    "collected; the tracker is another site's estimate. Do not treat either as a prediction.", fontSize = 12.sp, color = Ow.Amber)
+            }
+        },
+    )
 }
 
 @Composable

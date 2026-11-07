@@ -17,6 +17,7 @@ ORANGE = "#F08A3C"
 RED = "#E5534B"
 
 LEVEL_COLORS = (GREEN, AMBER, ORANGE, RED)
+DEFCON_COLORS = {5: GREEN, 4: "#A8C84A", 3: AMBER, 2: ORANGE, 1: RED}
 KIND_COLORS = {"military": BLUE, "conflict": RED, "hazard": AMBER, "weather": AMBER, "space": AMBER,
                "health": ORANGE, "news": MUTED, "cyber": "#B58CF2", "prepper": "#7FC97F"}
 BUTTON_RADIUS = 14

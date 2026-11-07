@@ -164,6 +164,15 @@ class App:
         self.btn(top, "Refresh now", lambda: self.start_refresh(force=True)).pack(side="right", padx=16, pady=8)
         self.status_top = self.label(top, "", self.f_small, theme.MUTED)
         self.status_top.pack(side="right", padx=8)
+        # DEFCON: the Overwatch estimate and the public tracker's reading, on every screen except Settings
+        self.defcon_box = tk.Frame(top, bg=theme.PANEL, cursor="hand2")
+        self.defcon_box.pack(side="right", padx=8)
+        self.defcon_est = tk.Label(self.defcon_box, text="", font=self.f_bold, padx=8, pady=3, bg=theme.PANEL_HIGH, fg=theme.BONE)
+        self.defcon_pub = tk.Label(self.defcon_box, text="", font=self.f_bold, padx=8, pady=3, bg=theme.PANEL_HIGH, fg=theme.BONE)
+        self.defcon_est.pack(side="left", padx=(0, 4))
+        self.defcon_pub.pack(side="left")
+        for w in (self.defcon_box, self.defcon_est, self.defcon_pub):
+            w.bind("<Button-1>", lambda e: self.show_defcon())
         self.body = tk.Frame(r, bg=theme.CHARCOAL)
         self.body.grid(row=1, column=0, sticky="nsew")
         self.body.rowconfigure(0, weight=1)
@@ -178,6 +187,7 @@ class App:
         self._build_brief(self.pages["brief"])
         self._build_settings(self.pages["settings"])
         self.watchtower = ui_watchtower.WatchtowerPage(self, self.pages["watchtower"])
+        self.render_defcon()
 
     def _toggle_fullscreen(self, event=None, force=None):
         """F11 switches between maximized and true full screen (Escape leaves full screen)."""
@@ -189,6 +199,10 @@ class App:
             self.watchtower.hide()
         self.page = key
         self.pages[key].tkraise()
+        if key == "settings":
+            self.defcon_box.pack_forget()
+        elif not self.defcon_box.winfo_ismapped():
+            self.defcon_box.pack(side="right", padx=8)
         for k, b in self.nav.items():
             b.configure(bg=theme.BLUE if k == key else theme.PANEL, fg=theme.ON_BLUE if k == key else theme.BONE)
         if key == "watchtower":
@@ -336,7 +350,46 @@ class App:
             b.configure(bg=theme.BLUE if on else theme.PANEL, fg=theme.ON_BLUE if on else theme.BONE)
 
     # ----- rendering the war room -----
+    def render_defcon(self):
+        d = self.c.defcon()
+        e = d["estimate"]
+        self.defcon_est.configure(text=f"DEFCON {e['level']}  Overwatch est.", bg=theme.DEFCON_COLORS[e["level"]], fg=theme.ON_BLUE)
+        p = d["public"]
+        if p:
+            self.defcon_pub.configure(text=f"DEFCON {p['level']}  Public" + ("  (old)" if p["old"] else ""),
+                                      bg=theme.DEFCON_COLORS[p["level"]] if not p["old"] else theme.PANEL_HIGH,
+                                      fg=theme.ON_BLUE if not p["old"] else theme.BONE)
+        else:
+            self.defcon_pub.configure(text="Public: not read yet", bg=theme.PANEL_HIGH, fg=theme.MUTED)
+
+    def show_defcon(self):
+        from . import defcon
+        d = self.c.defcon()
+        e, p = d["estimate"], d["public"]
+        w = tk.Toplevel(self.root)
+        w.title("DEFCON")
+        w.configure(bg=theme.CHARCOAL)
+        w.transient(self.root)
+        w.geometry("560x430")
+        self.label(w, f"Overwatch estimate: DEFCON {e['level']}", self.f_big, theme.DEFCON_COLORS[e["level"]], bg=theme.CHARCOAL).pack(anchor="w", padx=18, pady=(16, 0))
+        self.label(w, defcon.WORDS[e["level"]], self.f_small, theme.MUTED, bg=theme.CHARCOAL).pack(anchor="w", padx=18)
+        self.label(w, "Worked out from the status lights, so it follows how much is being reported:", self.f_small, bg=theme.CHARCOAL).pack(anchor="w", padx=18, pady=(8, 2))
+        for r in e["reasons"]:
+            self.label(w, "  \u2022 " + r, self.f_small, theme.MUTED, bg=theme.CHARCOAL).pack(anchor="w", padx=18)
+        if p:
+            when = time.strftime("%b %d %H:%M", time.localtime(p["fetched"]))
+            self.label(w, f"Public tracker: DEFCON {p['level']}", self.f_big, theme.DEFCON_COLORS[p["level"]], bg=theme.CHARCOAL).pack(anchor="w", padx=18, pady=(18, 0))
+            self.label(w, f"defconlevel.com, its update: {p['updated'] or 'not stated'}. Read by Overwatch {when}."
+                       + (" This reading is more than six hours old." if p["old"] else ""), self.f_small, theme.MUTED, bg=theme.CHARCOAL).pack(anchor="w", padx=18)
+        else:
+            self.label(w, "Public tracker: not read yet (needs the internet; it is read on each refresh).", self.f_small, theme.MUTED, bg=theme.CHARCOAL).pack(anchor="w", padx=18, pady=(18, 0))
+        self.label(w, "Neither number is official. The real DEFCON level is not published. The estimate is Overwatch's own reading of the news it "
+                   "collected; the tracker is another site's estimate. Do not treat either as a prediction.", self.f_small, theme.AMBER, bg=theme.CHARCOAL,
+                   wraplength=520, justify="left").pack(anchor="w", padx=18, pady=(18, 8))
+        self.btn(w, "Close", w.destroy, small=True).pack(anchor="e", padx=18, pady=8)
+
     def refresh_view(self):
+        self.render_defcon()
         now = self.c.now()
         for (bar, name, word, note), (iid, label, lvl, w, n) in zip(self.tiles, self.c.indicators()):
             col = theme.LEVEL_COLORS[lvl]

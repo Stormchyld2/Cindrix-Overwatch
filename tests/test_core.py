@@ -998,6 +998,38 @@ class Translation(unittest.TestCase):
         src = sources.custom_sources([{"name": "X", "url": "https://x.example.com/news", "kind": "news"}])[0]
         self.assertEqual(src["parser"], "auto")
 
+    def test_defcon_reading_estimate_and_public_tracker(self):
+        import tempfile
+        from cindrix_overwatch import defcon, scoring
+        page = "<h1>DEFCON Level Threat Monitor</h1><p>LIVE &middot; <b>OSINT Estimate: DEFCON 3</b> &middot; Updated Nov 6, 2026 (UTC)</p>"
+        self.assertEqual(defcon.parse_public(page), {"level": 3, "updated": "Nov 6, 2026"})
+        self.assertEqual(defcon.parse_public("LIVE OSINT Estimate: DEFCON 2 Updated Nov 6, 2026 (UTC)")["level"], 2)
+        self.assertIsNone(defcon.parse_public("<html>Nothing about it here.</html>"))
+        # the estimate follows the conflict, military and force-movement lights, and is never DEFCON 1
+        light = lambda k, lvl: (k, k.title(), lvl, "WORD", "note")
+        calm = defcon.estimate([light("conflict", 0), light("military", 0), light("deploy", 0)])
+        busy = defcon.estimate([light("conflict", 3), light("military", 3), light("deploy", 3)])
+        self.assertEqual((calm["level"], busy["level"]), (5, 2))
+        self.assertEqual(len(busy["reasons"]), 3)
+        # the engine reads the tracker, keeps the last good reading, and marks it old after six hours
+        now = [S.NOW]
+        reply = [(200, page)]
+        d = tempfile.mkdtemp()
+        c = engine.Controller(d, lambda u: reply[0], lambda: now[0])
+        self.assertIsNone(c.defcon()["public"])
+        c.refresh_defcon()
+        got = c.defcon()
+        self.assertEqual(got["public"]["level"], 3)
+        self.assertFalse(got["public"]["old"])
+        reply[0] = (503, "")
+        now[0] += 3 * 3600
+        c.refresh_defcon()
+        self.assertEqual(c.defcon()["public"]["level"], 3)         # kept
+        now[0] += 4 * 3600
+        c.refresh_defcon()
+        self.assertTrue(c.defcon()["public"]["old"])
+        self.assertIn(c.defcon()["estimate"]["level"], (2, 3, 4, 5))
+
     def test_gdelt_is_hourly_and_always_last_in_a_refresh(self):
         g = [x for x in sources.BUILTIN if "gdeltproject" in x["url"]]
         self.assertEqual(len(g), 2)
@@ -1016,6 +1048,7 @@ class Translation(unittest.TestCase):
                 c.refresh(force=True)
         finally:
             c.close()
+        order = [u for u in order if "defconlevel" not in u]      # the DEFCON page is read after the sources, on its own
         self.assertTrue(order)
         first_gdelt = min(i for i, u in enumerate(order) if "gdeltproject" in u)
         self.assertTrue(all("gdeltproject" in u for u in order[first_gdelt:]))

@@ -317,6 +317,7 @@ class Engine(
         val added = store.upsert(all, clock())
         store.prune(clock() - KEEP_DAYS * 86400)
         store.setMeta("last_refresh", clock().toString())
+        runCatching { refreshDefcon(force) }        // a bonus: it never makes a refresh fail
         RefreshResult(due.size, ok, failed, added)
     }
 
@@ -375,6 +376,22 @@ class Engine(
     /** The Top 10 for early warning with the reasons each one is there, for the Intel dashboard. */
     fun topWarnings(n: Int = 10, region: String? = null, minSeverity: Int = 0): List<Pair<Item, List<String>>> =
         topWarnings(group(allItems(48)).filter { passes(it, region, minSeverity) }, homeStates, clock(), n)
+
+    /** Reads the public DEFCON tracker at most once an hour. A failed read keeps the last good one. */
+    fun refreshDefcon(force: Boolean): Defcon.Public? {
+        val cur = defconPublic()
+        if (cur != null && !force && clock() - cur.fetched < 3600) return cur
+        val (code, text) = fetch(Defcon.URL)
+        val got = if (code == 200) Defcon.parsePublic(text) else null
+        if (got != null) {
+            val p = Defcon.Public(got.first, got.second, clock())
+            store.setMeta("defcon_public", Defcon.toJson(p))
+            return p
+        }
+        return cur
+    }
+
+    fun defconPublic(): Defcon.Public? = Defcon.fromJson(store.meta("defcon_public"))
 
     fun indicators(): List<Indicator> = indicators(allItems(24 * 7), homeStates, geo, clock())
 

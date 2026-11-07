@@ -171,6 +171,18 @@ def main():
         ui_cameras.link_toggle(app)
         assert app.link_server is None and not app.link_code_var.get()
 
+        # DEFCON chips show on every screen but Settings
+        app.show_page("war")
+        assert "DEFCON" in app.defcon_est.cget("text")
+        assert app.defcon_box.winfo_ismapped(), "DEFCON must show on the war room"
+        app.show_page("settings")
+        app.root.update_idletasks()
+        assert not app.defcon_box.winfo_ismapped(), "DEFCON must be hidden on Settings"
+        app.show_page("intel")
+        app.root.update_idletasks()
+        assert app.defcon_box.winfo_ismapped(), "DEFCON must come back on Intel"
+        app.show_page("settings")
+
         # lock: needs a PIN first, then covers the tab until the right PIN is typed
         app.lock_mode.set("pin")
         ui_cameras.lock_apply(app)

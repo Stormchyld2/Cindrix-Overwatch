@@ -355,4 +355,16 @@ class OverwatchTest {
         assertTrue(feeds.looksLikeHtml(html))
         assertTrue(runCatching { feeds.parse(src, "<html><body><p>Nothing here.</p></body></html>", now) }.isFailure)
     }
+
+    @Test fun defconReadingEstimateAndPublicTracker() {
+        val page = "<h1>DEFCON Level Threat Monitor</h1><p>LIVE &middot; <b>OSINT Estimate: DEFCON 3</b> &middot; Updated Nov 6, 2026 (UTC)</p>"
+        assertEquals(3 to "Nov 6, 2026", Defcon.parsePublic(page))
+        assertNull(Defcon.parsePublic("<html>Nothing about it here.</html>"))
+        fun light(id: String, lvl: Int) = Indicator(id, id, lvl, "WATCH", "note")
+        assertEquals(5, Defcon.estimate(listOf(light("conflict", 0), light("military", 0), light("deploy", 0))).level)
+        assertEquals(2, Defcon.estimate(listOf(light("conflict", 3), light("military", 3), light("deploy", 3))).level)
+        val p = Defcon.Public(3, "Nov 6, 2026", 1000.0)
+        assertEquals(p, Defcon.fromJson(Defcon.toJson(p)))
+        assertTrue(!p.old(1000.0 + 3 * 3600) && p.old(1000.0 + 7 * 3600))
+    }
 }

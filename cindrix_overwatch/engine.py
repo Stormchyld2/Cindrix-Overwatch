@@ -14,7 +14,7 @@ import urllib.request
 from urllib.parse import urljoin, urlparse
 from concurrent.futures import ThreadPoolExecutor
 
-from . import ai, cameras, discover, feeds, geo, scoring, sources, tor, vault
+from . import ai, cameras, defcon, discover, feeds, geo, scoring, sources, tor, vault
 from .store import Store
 
 MAX_BYTES = 5_000_000
@@ -445,7 +445,42 @@ class Controller:
         new = self.store.upsert(results, self.now())
         self.store.prune(self.now() - KEEP_DAYS * 86400)
         self.store.set_meta("last_refresh", self.now())
+        try:
+            self.refresh_defcon(force)
+        except Exception:
+            pass        # the DEFCON reading is a bonus: it never makes a refresh fail
         return {"asked": len(due), "ok": ok, "failed": failed, "new": new}
+
+    # ----- DEFCON header (see defcon.py) -----
+    def refresh_defcon(self, force=False):
+        """Reads the public tracker at most once an hour. A failed read keeps the last good one (shown as old when it is)."""
+        now = self.now()
+        cur = self.defcon_public()
+        if cur and not force and now - cur["fetched"] < 3600:
+            return cur
+        status, text = self.fetch(defcon.URL)
+        got = defcon.parse_public(text) if status == 200 else None
+        if got:
+            got["fetched"] = now
+            self.store.set_meta("defcon_public", json.dumps(got))
+            return got
+        return cur
+
+    def defcon_public(self):
+        try:
+            d = json.loads(self.store.get_meta("defcon_public", "") or "null")
+        except ValueError:
+            return None
+        if isinstance(d, dict) and d.get("level") in (1, 2, 3, 4, 5) and isinstance(d.get("fetched"), (int, float)):
+            return d
+        return None
+
+    def defcon(self):
+        """{'estimate': {...}, 'public': {...} or None}. 'public' carries 'old': True when it has not been read for six hours."""
+        pub = self.defcon_public()
+        if pub:
+            pub = dict(pub, old=defcon.stale(pub["fetched"], self.now()))
+        return {"estimate": defcon.estimate(self.indicators()), "public": pub}
 
     # ----- what the screen shows -----
     def last_refresh(self):

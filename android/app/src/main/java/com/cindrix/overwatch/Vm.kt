@@ -30,6 +30,9 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
     var tab by mutableStateOf(0)
     var items by mutableStateOf<List<Item>>(emptyList())
     var indicators by mutableStateOf<List<Indicator>>(emptyList())
+    var defconEst by mutableStateOf<Defcon.Estimate?>(null)
+    var defconPub by mutableStateOf<Defcon.Public?>(null)
+    var showDefcon by mutableStateOf(false)
     var sources by mutableStateOf<List<SourceStatus>>(emptyList())
     var newCount by mutableStateOf(0)
     var prevOpen by mutableStateOf(0.0)
@@ -91,6 +94,7 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
         val hp = engine.geo.homePoint(hs)
         val tp = engine.topWarnings(10, regionCode(), minSev)
         withContext(Dispatchers.Main) {
+            defconEst = Defcon.estimate(ind); defconPub = engine.defconPublic()
             items = feedItems; indicators = ind; sources = src; newCount = n; prevOpen = prev; lastRefresh = last
             storedCount = count; home = hs; homePoint = hp; top = tp
         }
