@@ -47,6 +47,8 @@ class Item(
     var summaryEn: String = ""
     /** True when the person placed this pin by hand (it wins over every automatic pin). */
     var mine: Boolean = false
+    /** False for a link read from a page that gives no dates: the store then keeps the date it first gave. */
+    var dated: Boolean = true
     /** The English title when one was made, else the original. */
     val shown: String get() = titleEn.ifEmpty { title }
     val shownSummary: String get() = summaryEn.ifEmpty { summary }

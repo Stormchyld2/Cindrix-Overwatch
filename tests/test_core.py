@@ -966,6 +966,38 @@ class Translation(unittest.TestCase):
         self.assertEqual(scoring.top_warnings([mk("prepper")], [], S.NOW), [])
         self.assertEqual(sources.custom_sources([{"name": "X", "url": "https://x.example.com/feed", "kind": "prepper"}])[0]["kind"], "prepper")
 
+    def test_a_website_with_no_feed_is_read_as_one(self):
+        from cindrix_overwatch import feeds
+        html = """<html><head><title>County Emergency Management</title></head><body>
+        <nav><a href="/news/menu-item-one-two-three-four">Menu item that should never be an article</a></nav>
+        <main>
+        <h2><a href="/news/2026/11/05/evacuation-order-for-river-road-residents">Evacuation order for River Road residents</a></h2>
+        <h2><a href="/news/2026/11/04/boil-water-notice-lifted-in-north-district">Boil water notice lifted in North District</a></h2>
+        <h2><a href="/news/storm-shelters-open-at-three-schools-tonight">Storm shelters open at three schools tonight</a></h2>
+        <h2><a href="https://other.example.org/elsewhere-story-about-something-else">Elsewhere story about something else</a></h2>
+        <h2><a href="/news/">Read more</a></h2>
+        <h2><a href="/news/2026/11/05/evacuation-order-for-river-road-residents">Evacuation order for River Road residents</a></h2>
+        </main><footer><a href="/privacy-policy-and-terms-of-use-here">Privacy policy and terms of use here</a></footer></body></html>"""
+        src = {"id": "custom-0", "name": "County", "kind": "news", "trust": "outlet", "url": "https://county.example.gov/news/"}
+        items = feeds.parse_page(html, src, S.NOW)
+        self.assertEqual([i.title for i in items], ["Evacuation order for River Road residents", "Boil water notice lifted in North District",
+                                                    "Storm shelters open at three schools tonight"])
+        self.assertTrue(all(i.url.startswith("https://county.example.gov/") for i in items))
+        self.assertLess(items[0].ts, S.NOW)                       # dated by the address
+        self.assertEqual(items[2].ts, S.NOW)                      # undated: now, and the engine keeps the first sight
+        self.assertTrue(feeds.looks_like_html(html))
+        self.assertEqual(feeds.page_title(html), "County Emergency Management")
+        with self.assertRaises(feeds.FeedError):
+            feeds.parse_page("<html><body><p>Nothing here.</p></body></html>", src, S.NOW)
+        # the 'auto' parser sends feeds and pages to the right reader
+        rss = "<?xml version='1.0'?><rss><channel><item><title>A story</title><link>https://x.example.com/a</link></item></channel></rss>"
+        self.assertEqual(feeds.parse_auto(rss, src, S.NOW)[0].title, "A story")
+        self.assertEqual(len(feeds.parse_auto(html, src, S.NOW)), 3)
+
+    def test_custom_feeds_use_the_auto_reader_and_get_a_name_from_the_site(self):
+        src = sources.custom_sources([{"name": "X", "url": "https://x.example.com/news", "kind": "news"}])[0]
+        self.assertEqual(src["parser"], "auto")
+
     def test_gdelt_is_hourly_and_always_last_in_a_refresh(self):
         g = [x for x in sources.BUILTIN if "gdeltproject" in x["url"]]
         self.assertEqual(len(g), 2)

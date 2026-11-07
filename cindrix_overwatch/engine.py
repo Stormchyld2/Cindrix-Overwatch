@@ -11,7 +11,7 @@ import time
 import urllib.error
 import threading
 import urllib.request
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 from concurrent.futures import ThreadPoolExecutor
 
 from . import ai, cameras, discover, feeds, geo, scoring, sources, tor, vault
@@ -228,7 +228,7 @@ class Controller:
             raise ValueError("A feed address must start with https:// and use a website name (or be a .onion address).")
         if len(self.settings["custom_feeds"]) >= 30:
             raise ValueError("That is the limit of 30 custom feeds.")
-        self.settings["custom_feeds"].append({"name": (name or "Custom feed").strip()[:60], "url": url.strip(),
+        self.settings["custom_feeds"].append({"name": (name or "").strip()[:60] or (urlparse(url.strip()).hostname or "Custom feed").removeprefix("www."), "url": url.strip(),
                                               "kind": kind})
         self.save_settings()
 
@@ -368,7 +368,34 @@ class Controller:
             raise feeds.FeedError("GDELT is limiting requests from your internet connection right now. Overwatch will try again in about 15 minutes.")
         if status != 200:
             raise feeds.FeedError("Could not reach it" + (f" (HTTP {status})" if status else (f": {text}" if text else "")))
+        if src["parser"] == "auto" and feeds.looks_like_html(text):
+            return self._read_page(src, text)
         return feeds.PARSERS[src["parser"]](text, src, self.now())
+
+    def _read_page(self, src, text):
+        """A web address that is not a feed: use the feed the page advertises if it has one, else read its article links."""
+        links = discover._Links()
+        try:
+            links.feed(text[:300_000])
+        except Exception:
+            pass
+        for href, _ in links.found[:2]:
+            u = urljoin(src["url"], href)
+            if u.lower().startswith("https://"):
+                st, body = self.fetch(u)
+                if st == 200 and body and not feeds.looks_like_html(body):
+                    try:
+                        items = feeds.parse_rss(body, src, self.now())
+                    except feeds.FeedError:
+                        continue
+                    if items:
+                        return items
+        items = feeds.parse_page(text, src, self.now())
+        known = self.store.first_ts([i.uid for i in items if not getattr(i, "dated", False)])
+        for i in items:
+            if i.uid in known:
+                i.ts = known[i.uid]
+        return items
 
     def refresh(self, progress=None, cancel=None, force=False):
         """Asks every source that is due. One broken source never stops the rest."""

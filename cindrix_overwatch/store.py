@@ -54,6 +54,16 @@ class Store:
             self.db.commit()
         return new
 
+    def first_ts(self, uids):
+        """{uid: ts} for items already stored (used to keep the date of a link from a page that publishes no dates)."""
+        out = {}
+        with self.lock:
+            for u in uids:
+                r = self.db.execute("SELECT ts FROM items WHERE uid=?", (u,)).fetchone()
+                if r:
+                    out[u] = r[0]
+        return out
+
     @staticmethod
     def _item(r):
         it = Item(r[1], r[2], r[3], r[4], r[5], r[6] or "", r[7] or "", r[8] or 0.0, r[9], r[10], r[11] or "",

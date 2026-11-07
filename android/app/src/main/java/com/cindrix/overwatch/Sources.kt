@@ -72,6 +72,19 @@ val BUILTIN_SOURCES = listOf(
     Src("pp-thesurvivalmom", "The Survival Mom Blog", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://thesurvivalmom.com/feed", everyMinutes = 120),
     Src("pp-preparednessma", "Preparedness Mama", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://preparednessmama.com/feed", everyMinutes = 120),
     Src("pp-hamradiopreppe", "Ham Radio Prepper", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://hamradioprepper.com/feed", everyMinutes = 120),
+    Src("pp-survivalistpre", "Survivalist Prepper", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://survivalistprepper.net/feed/", everyMinutes = 120),
+    Src("pp-urbanskills", "Urban Survival Skills", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://get-urban-survival-skills.blogspot.com/feeds/posts/default", everyMinutes = 120),
+    Src("pp-urbansite", "Urban Survival Site", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://urbansurvivalsite.com/feed/", everyMinutes = 120),
+    Src("pp-selfrelianceou", "Self Reliance Outfitters Blog", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://www.selfrelianceoutfitters.com/blogs/survival-blog.atom", everyMinutes = 120),
+    Src("pp-naturereliance", "Nature Reliance Blog", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://naturereliance.org/blogs/blog.atom", everyMinutes = 120),
+    Src("pp-survivalfrogbl", "Survival Frog Blog", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://survivalfrog.com/blogs/survival.atom", everyMinutes = 120),
+    Src("pp-selfreliantsch", "Self Reliant School", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://momwithaprep.com/feed/", everyMinutes = 120),
+    Src("pp-homesteadsurvi", "Homestead Survival Site", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://homesteadsurvivalsite.com/feed/", everyMinutes = 120),
+    Src("pp-thepreparedchr", "The Prepared Christian", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://thepreparedchristian.blogspot.com/feeds/posts/default", everyMinutes = 120),
+    Src("pp-doomandbloom", "Doom and Bloom", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://doomandbloom.net/feed/", everyMinutes = 120),
+    Src("pp-canadianpreppe", "Canadian Preppers Network", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://canadianpreppersnetwork.com/feed/", everyMinutes = 120),
+    Src("pp-canadianprepar", "Canadian Preparedness News", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://canadianpreparedness.com/blogs/news.atom", everyMinutes = 120),
+    Src("pp-bushcraftsurvi", "Bushcraft Survival Australia Blog", "Prepper", Kind.PREPPER, Trust.OUTLET, "https://bushcraftsurvivalaustralia.com.au/feed/", everyMinutes = 120),
 )
 
 /** The four reading channels of the Intel tab, the same as on the PC. */

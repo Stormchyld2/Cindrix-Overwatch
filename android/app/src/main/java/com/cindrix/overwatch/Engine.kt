@@ -203,7 +203,7 @@ class Engine(
     fun addFeed(name: String, url: String, kind: String): String? {
         if (!validFeedUrl(url)) return "A feed address must start with https:// and use a website name (or be a full .onion address)."
         if (customFeeds.size >= 30) return "That is the limit of 30 custom feeds."
-        customFeeds = customFeeds + CustomFeed(name.ifBlank { "Custom feed" }.take(60), url.trim(), kind)
+        customFeeds = customFeeds + CustomFeed(name.ifBlank { runCatching { java.net.URI(url.trim()).host.removePrefix("www.") }.getOrNull() ?: "Custom feed" }.take(60), url.trim(), kind)
         return null
     }
 
@@ -218,7 +218,7 @@ class Engine(
     fun allSources(): List<Src> {
         val custom = customFeeds.mapIndexedNotNull { i, c ->
             if (!validFeedUrl(c.url)) null
-            else Src("custom-$i", c.name, if (Tor.isOnionUrl(c.url)) "Mine (Tor)" else "Mine", Kind.of(c.kind), Trust.OUTLET, c.url)
+            else Src("custom-$i", c.name, if (Tor.isOnionUrl(c.url)) "Mine (Tor)" else "Mine", Kind.of(c.kind), Trust.OUTLET, c.url, "auto")
         }
         return nwsSources(homeStates) + BUILTIN_SOURCES + custom
     }
@@ -251,6 +251,21 @@ class Engine(
             throw FeedError("GDELT is limiting requests from your internet connection right now. Overwatch will try again in about 15 minutes.")
         }
         if (code != 200) throw FeedError("Could not reach it" + if (code != 0) " (HTTP $code)" else if (text.isNotEmpty()) ": $text" else "")
+        if (src.parser == "auto" && feeds.looksLikeHtml(text)) {
+            // a page that advertises a feed is read through that feed; otherwise its article links are read
+            val adv = Regex("(?is)<link\\b[^>]*>").findAll(text.take(300_000)).map { it.value }.filter {
+                Regex("(?i)rel\\s*=\\s*[\"']alternate[\"']").containsMatchIn(it) && Regex("(?i)type\\s*=\\s*[\"']application/(rss|atom)\\+xml[\"']").containsMatchIn(it)
+            }.mapNotNull { Regex("(?i)href\\s*=\\s*[\"']([^\"']+)[\"']").find(it)?.groupValues?.get(1) }.take(2).toList()
+            for (h in adv) {
+                val u = runCatching { java.net.URI(src.url).resolve(h.replace("&amp;", "&")).toString() }.getOrNull() ?: continue
+                if (!u.startsWith("https://")) continue
+                val (c2, body) = get(u)
+                if (c2 == 200 && body.isNotEmpty() && !feeds.looksLikeHtml(body)) {
+                    val items = runCatching { feeds.rss(src, body, clock()) }.getOrNull()
+                    if (!items.isNullOrEmpty()) return items
+                }
+            }
+        }
         return feeds.parse(src, text, clock())
     }
 

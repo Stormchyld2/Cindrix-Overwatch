@@ -7,6 +7,7 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
+import java.net.URI
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -18,6 +19,8 @@ class Feeds(private val geo: Gazetteer) {
 
     fun parse(src: Src, text: String, now: Double): List<Item> = when (src.parser) {
         "rss" -> rss(src, text, now)
+        "page" -> page(src, text, now)
+        "auto" -> if (looksLikeHtml(text)) page(src, text, now) else rss(src, text, now)
         "usgs" -> usgs(src, text)
         "nws" -> nws(src, text, now)
         "eonet" -> eonet(src, text, now)
@@ -150,6 +153,63 @@ class Feeds(private val geo: Gazetteer) {
         if (out.isEmpty() && root !in setOf("rss", "feed", "rdf")) throw FeedError("This is not an RSS or Atom feed.")
         return out
     }
+
+    // ----- websites that publish no feed: the article links on the page are read as if they were one -----
+    fun looksLikeHtml(text: String): Boolean {
+        val head = text.take(3000).lowercase()
+        return "<html" in head || "<!doctype html" in head || "<body" in head
+    }
+
+    private val skipBlocks = Regex("(?is)<(script|style|nav|header|footer|aside|form|noscript|svg|button)\\b.*?</\\1>")
+    private val notArticle = Regex("/(tag|tags|category|categories|author|authors|page|search|login|signin|register|contact|about|privacy|terms|cart|account|" +
+        "subscribe|shop|store|wp-admin|feed|rss|donate|cdn-cgi)(/|$)|\\.(jpg|jpeg|png|gif|webp|pdf|zip|mp3|mp4|css|js)$", RegexOption.IGNORE_CASE)
+    private val generic = Regex("^(read more|learn more|continue reading|more|view all|see all|click here|share|comments?|reply|next|previous|older|newer|home|menu|skip to content)\\W*$",
+        RegexOption.IGNORE_CASE)
+    private val dateInPath = Regex("/(20\\d\\d)[/-](0?[1-9]|1[0-2])(?:[/-](0?[1-9]|[12]\\d|3[01]))?(?:/|-|$)")
+
+    /** A web page with no feed: its headline links become items. Dated by the address when it has a date, else by the first sight. */
+    fun page(src: Src, text: String, now: Double): List<Item> {
+        val html = skipBlocks.replace(text.take(600_000), " ")
+        val heads = Regex("(?is)<h[1-4]\\b.*?</h[1-4]>").findAll(html).map { it.range }.toList()
+        val arts = Regex("(?is)<(article|main)\\b.*?</\\1>").findAll(html).map { it.range }.toList()
+        val base = try { java.net.URI(src.url) } catch (e: Exception) { throw FeedError("That address could not be read.") }
+        val host = (base.host ?: "").lowercase().removePrefix("www.")
+        val root = base.path.orEmpty().trimEnd('/')
+        val seen = HashSet<String>()
+        val cands = ArrayList<Triple<String, String, Boolean>>()
+        for (m in Regex("(?is)<a\\b([^>]*)>(.*?)</a>").findAll(html)) {
+            val href = Regex("(?is)href\\s*=\\s*[\"']([^\"']+)[\"']").find(m.groupValues[1])?.groupValues?.get(1)?.trim() ?: continue
+            if (href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("javascript:")) continue
+            val label = stripHtml(m.groupValues[2])
+            if (label.isEmpty() || generic.matches(label)) continue
+            val u = try { base.resolve(unescapeAmp(href)).let { java.net.URI(it.scheme, it.authority, it.path, it.query, null) } } catch (e: Exception) { continue }
+            if (u.scheme != "http" && u.scheme != "https") continue
+            val h = (u.host ?: "").lowercase().removePrefix("www.")
+            if (!(h == host || h.endsWith(".$host"))) continue
+            val path = u.path.orEmpty()
+            val url = u.toString()
+            if (notArticle.containsMatchIn(path) || path.trimEnd('/') == "" || path.trimEnd('/') == root || url in seen) continue
+            val inHead = heads.any { m.range.first in it }
+            val inArt = arts.any { m.range.first in it }
+            if (!(inHead || label.split(" ").size >= 5) || label.length < 18 || label.length > 220) continue
+            seen += url
+            cands += Triple(url, label, inHead || inArt)
+        }
+        val strong = cands.filter { it.third }
+        val pick = if (strong.size >= 4) strong else cands
+        val out = pick.take(40).map { (url, label, _) ->
+            val d = dateInPath.find(URI(url).path.orEmpty())
+            val ts = if (d != null) runCatching {
+                LocalDateTime.of(d.groupValues[1].toInt(), d.groupValues[2].toInt(), d.groupValues[3].ifEmpty { "1" }.toInt(), 12, 0)
+                    .toEpochSecond(ZoneOffset.UTC).toDouble()
+            }.getOrDefault(now) else now
+            finish(Item(src.id, src.name, src.kind, src.trust, label, url, "", minOf(ts, now))).also { it.dated = d != null }
+        }
+        if (out.isEmpty()) throw FeedError("No article links were found on that page. It may need a browser to load, or it may block automated readers.")
+        return out
+    }
+
+    private fun unescapeAmp(s: String) = s.replace("&amp;", "&")
 
     // ----- JSON sources -----
     private fun obj(text: String): JSONObject = try {

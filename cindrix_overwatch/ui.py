@@ -638,7 +638,7 @@ class App:
         # add a feed: it appears in the list below with its own switch
         add = tk.Frame(p, bg=theme.PANEL)
         add.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 8))
-        self.label(add, "Add your own feed (RSS or Atom, https only; .onion works when Tor is running). It gets its own on/off switch below.",
+        self.label(add, "Add your own feed or website (https only; .onion works when Tor is running). A site with no feed is read for its article links. It gets its own on/off switch below.",
                    self.f_bold).grid(row=0, column=0, columnspan=8, sticky="w", padx=12, pady=(10, 4))
         self.cf_name, self.cf_url = tk.StringVar(), tk.StringVar()
         self.cf_cat = tk.StringVar(value=FEED_CATEGORIES[1][0])

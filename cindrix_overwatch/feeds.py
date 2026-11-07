@@ -11,6 +11,8 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlparse
 
 from . import geo
 from .model import Item
@@ -283,5 +285,127 @@ def parse_gdelt(text, src, now=None):
     return out
 
 
+# ----- websites that publish no feed: the article links on the page are read as if they were one -----
+_SKIP_PARTS = ("script", "style", "nav", "header", "footer", "aside", "form", "noscript", "svg", "button")
+_NOT_ARTICLE = re.compile(r"/(tag|tags|category|categories|author|authors|page|search|login|signin|register|contact|about|privacy|terms|cart|account|"
+                          r"subscribe|shop|store|wp-admin|feed|rss|donate|cdn-cgi)(/|$)|\.(jpg|jpeg|png|gif|webp|pdf|zip|mp3|mp4|css|js)$|^mailto:|^tel:|^javascript:", re.I)
+_GENERIC = re.compile(r"^(read more|learn more|continue reading|more|view all|see all|click here|share|comments?|reply|next|previous|older|newer|home|menu|skip to content)\W*$", re.I)
+_DATE_IN_PATH = re.compile(r"/(20\d\d)[/-](0?[1-9]|1[0-2])(?:[/-](0?[1-9]|[12]\d|3[01]))?(?:/|-|$)")
+
+
+class _Anchors(HTMLParser):
+    """Collects (href, text, in_heading, in_article) for every link outside menus, headers, footers and scripts."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.skip = 0
+        self.heading = 0
+        self.article = 0
+        self.cur = None
+        self.found = []
+        self.title = ""
+        self._in_title = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "title":
+            self._in_title = True
+        if tag in _SKIP_PARTS:
+            self.skip += 1
+        elif tag in ("h1", "h2", "h3", "h4"):
+            self.heading += 1
+        elif tag in ("article", "main"):
+            self.article += 1
+        elif tag == "a" and not self.skip:
+            href = dict(attrs).get("href") or ""
+            self.cur = [href, [], self.heading > 0, self.article > 0]
+
+    def handle_endtag(self, tag):
+        if tag == "title":
+            self._in_title = False
+        if tag in _SKIP_PARTS:
+            self.skip = max(0, self.skip - 1)
+        elif tag in ("h1", "h2", "h3", "h4"):
+            self.heading = max(0, self.heading - 1)
+        elif tag in ("article", "main"):
+            self.article = max(0, self.article - 1)
+        elif tag == "a" and self.cur:
+            self.found.append((self.cur[0], " ".join("".join(self.cur[1]).split()), self.cur[2], self.cur[3]))
+            self.cur = None
+
+    def handle_data(self, data):
+        if self._in_title and len(self.title) < 120:
+            self.title += data
+        if self.cur is not None:
+            self.cur[1].append(data)
+
+
+def looks_like_html(text):
+    head = (text or "")[:3000].lower()
+    return "<html" in head or "<!doctype html" in head or "<body" in head
+
+
+def page_title(text):
+    p = _Anchors()
+    try:
+        p.feed(text[:300_000])
+    except Exception:
+        pass
+    return " ".join(p.title.split())[:80]
+
+
+def parse_page(text, src, now=None):
+    """A web page with no feed: its headline links become items. The date comes from the address when it has one
+    (/2026/11/05/...), otherwise from the first time Overwatch saw the link (the engine keeps that)."""
+    now = now or time.time()
+    p = _Anchors()
+    try:
+        p.feed(text[:600_000])
+    except Exception:
+        raise FeedError("That page could not be read.")
+    base = src["url"]
+    host = (urlparse(base).hostname or "").lower().removeprefix("www.")
+    root = urlparse(base).path.rstrip("/")
+    cands, seen = [], set()
+    for href, label, in_head, in_art in p.found:
+        if not href or href.startswith("#") or _GENERIC.match(label):
+            continue
+        url = urljoin(base, href).split("#")[0]
+        u = urlparse(url)
+        h = (u.hostname or "").lower().removeprefix("www.")
+        if u.scheme not in ("http", "https") or not (h == host or h.endswith("." + host)):
+            continue
+        if _NOT_ARTICLE.search(u.path) or u.path.rstrip("/") in ("", root) or url in seen:
+            continue
+        words = len(label.split())
+        if not (in_head or words >= 5) or len(label) < 18 or len(label) > 220:
+            continue
+        seen.add(url)
+        cands.append((url, label, in_head or in_art))
+    strong = [c for c in cands if c[2]]
+    pick = strong if len(strong) >= 4 else cands
+    out = []
+    for url, label, _ in pick[:40]:
+        m = _DATE_IN_PATH.search(urlparse(url).path)
+        ts = now
+        if m:
+            try:
+                ts = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3) or 1), 12, tzinfo=timezone.utc).timestamp()
+            except ValueError:
+                ts = now
+        it = Item(src["id"], src["name"], src["kind"], src["trust"], label, url, "", min(ts, now))
+        it.dated = bool(m)
+        out.append(_finish(it, src))
+    if not out:
+        raise FeedError("No article links were found on that page. It may need a browser to load, or it may block automated readers.")
+    return out
+
+
+def parse_auto(text, src, now=None):
+    """Reads whatever the address gives: a feed, or a plain web page."""
+    if looks_like_html(text):
+        return parse_page(text, src, now)
+    return parse_rss(text, src, now)
+
+
 PARSERS = {"rss": parse_rss, "usgs": parse_usgs, "nws": parse_nws, "eonet": parse_eonet, "gdacs": parse_gdacs,
-           "swpc": parse_swpc, "gdelt": parse_gdelt}
+           "swpc": parse_swpc, "gdelt": parse_gdelt, "page": parse_page, "auto": parse_auto}

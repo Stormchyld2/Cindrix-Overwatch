@@ -96,7 +96,9 @@ class Store(ctx: Context) : SQLiteOpenHelper(ctx, "overwatch.db", null, 4) {
                     put("lat", it.lat); put("lon", it.lon); put("place", it.place); put("severity", it.severity)
                     put("states", it.states.joinToString(",")); put("last_seen", now)
                 }
-                val updated = db.update("items", cv, "uid=?", arrayOf(it.uid))
+                val upd = ContentValues(cv)
+                if (!it.dated) upd.remove("ts")
+                val updated = db.update("items", upd, "uid=?", arrayOf(it.uid))
                 if (updated == 0) {
                     cv.put("uid", it.uid); cv.put("first_seen", now)
                     db.insert("items", null, cv)

@@ -334,4 +334,25 @@ class OverwatchTest {
         assertNull(Link.rewriteWg("[Interface]\nAddress = nonsense", "x"))
         assertNull(Link.wgInfo("hello"))
     }
+
+    @Test fun aWebsiteWithNoFeedIsReadAsOne() {
+        val html = """<html><head><title>County</title></head><body>
+            <nav><a href="/news/menu-item-one-two-three-four">Menu item that should never be an article</a></nav>
+            <main>
+            <h2><a href="/news/2026/11/05/evacuation-order-for-river-road-residents">Evacuation order for River Road residents</a></h2>
+            <h2><a href="/news/2026/11/04/boil-water-notice-lifted-in-north-district">Boil water notice lifted in North District</a></h2>
+            <h2><a href="/news/storm-shelters-open-at-three-schools-tonight">Storm shelters open at three schools tonight</a></h2>
+            <h2><a href="https://other.example.org/elsewhere-story-about-something-else">Elsewhere story about something else</a></h2>
+            <h2><a href="/news/">Read more</a></h2>
+            </main><footer><a href="/privacy-policy-and-terms-of-use-here">Privacy policy and terms of use here</a></footer></body></html>"""
+        val src = Src("custom-0", "County", "Mine", Kind.NEWS, Trust.OUTLET, "https://county.example.gov/news/", "auto")
+        val now = 1_800_000_000.0
+        val items = feeds.parse(src, html, now)
+        assertEquals(listOf("Evacuation order for River Road residents", "Boil water notice lifted in North District",
+            "Storm shelters open at three schools tonight"), items.map { it.title })
+        assertTrue(items[0].ts < now && items[0].dated)
+        assertTrue(!items[2].dated)
+        assertTrue(feeds.looksLikeHtml(html))
+        assertTrue(runCatching { feeds.parse(src, "<html><body><p>Nothing here.</p></body></html>", now) }.isFailure)
+    }
 }
