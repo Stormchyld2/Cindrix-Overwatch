@@ -168,6 +168,9 @@ class Engine(
                 val r = get(src.url); code = r.first; text = r.second
             }
         }
+        if (code == 429 && src.url.contains("gdeltproject.org")) {
+            throw FeedError("GDELT is limiting requests from your internet connection right now. Overwatch will try again in an hour.")
+        }
         if (code != 200) throw FeedError("Could not reach it" + if (code != 0) " (HTTP $code)" else if (text.isNotEmpty()) ": $text" else "")
         return feeds.parse(src, text, clock())
     }
@@ -180,8 +183,9 @@ class Engine(
         val due = allSources().filter {
             // the refresh button never re-asks GDELT within 5 minutes of the last try: asking again is what makes it say 429
             val lastTry = health[it.id]?.lastTry
-            val minGap = if (it.url.contains("gdeltproject.org")) 300 else 0
-            it.id !in off && (lastTry == null || (force && now - lastTry >= minGap) || now - lastTry >= it.everyMinutes * 60)
+            // after GDELT refused us, leave it alone for an hour: it only recovers when it is not asked
+            val minGap = if (it.url.contains("gdeltproject.org")) (if (health[it.id]?.ok == false) 3600 else 300) else 0
+            it.id !in off && (lastTry == null || now - lastTry >= maxOf(minGap, if (force) 0 else it.everyMinutes * 60))
         }
         val gate = Semaphore(6)
         var done = 0

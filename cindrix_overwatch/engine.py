@@ -244,6 +244,8 @@ class Controller:
                 time.sleep(wait)
                 self._throttle(src["url"])
                 status, text = self.fetch(src["url"])
+        if status == 429 and src["url"].startswith("https://api.gdeltproject.org"):
+            raise feeds.FeedError("GDELT is limiting requests from your internet connection right now. Overwatch will try again in an hour.")
         if status != 200:
             raise feeds.FeedError("Could not reach it" + (f" (HTTP {status})" if status else (f": {text}" if text else "")))
         return feeds.PARSERS[src["parser"]](text, src, self.now())
@@ -259,8 +261,9 @@ class Controller:
                 return True
             gap = now - (h["last_try"] or 0)
             # the refresh button never re-asks GDELT within 5 minutes of the last try: asking again is what makes it say 429
-            min_gap = 300 if s["url"].startswith("https://api.gdeltproject.org") else 0
-            return (force and gap >= min_gap) or gap >= s["every"] * 60
+            # after GDELT refused us, leave it alone for an hour: it only recovers when it is not asked
+            min_gap = (300 if h["ok"] else 3600) if s["url"].startswith("https://api.gdeltproject.org") else 0
+            return gap >= max(min_gap, 0 if force else s["every"] * 60)
         due = [s for s in self.sources() if is_due(s)]
         done, ok, failed, new = 0, 0, 0, 0
         results = []
