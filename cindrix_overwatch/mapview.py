@@ -2,7 +2,7 @@
 
 import tkinter as tk
 
-from . import theme
+from . import scoring, theme
 from .mapdata import load_land
 
 MIN_SCALE_FACTOR, MAX_SCALE = 1.0, 60.0     # pixels per degree
@@ -53,12 +53,16 @@ class Projection:
         self.clamp()
 
 
+DEFAULT_LAYERS = ("military", "deploy", "conflict", "hazard", "weather", "news", "mine")
+
+
 class WorldMap(tk.Canvas):
     def __init__(self, master, on_select=None, **kw):
         super().__init__(master, bg=theme.MAP_BG, highlightthickness=1, highlightbackground=theme.PANEL_HIGH, **kw)
         self.rings, self.detailed = load_land()
         self.proj = Projection(800, 400)
-        self.items, self.layers, self.selected, self.home = [], {"military", "conflict", "hazard", "news"}, None, None
+        self.items, self.layers, self.selected, self.home = [], set(DEFAULT_LAYERS), None, None
+        self.pin_cb = None            # while set, the next click on the map places a pin instead of picking one
         self.on_select = on_select
         self._hits = []
         self._drag = None
@@ -99,9 +103,23 @@ class WorldMap(tk.Canvas):
         self.selected = item.uid if item else None
         self.redraw()
 
+    def set_pin_mode(self, callback):
+        """callback(lat, lon) gets the next click; None switches pin mode off."""
+        self.pin_cb = callback
+        self.configure(cursor="crosshair" if callback else "")
+
     @staticmethod
     def layer_of(item):
-        return "hazard" if item.kind in ("hazard", "weather", "space", "health") else item.kind
+        if item.kind == "weather":
+            return "weather"
+        if item.kind in ("hazard", "space", "health"):
+            return "hazard"
+        return "news" if item.kind == "cyber" else item.kind
+
+    def shown(self, item):
+        """A pin shows when its layer is on, or it is a force movement and Troop movements is on, or it is yours and My pins is on."""
+        return (self.layer_of(item) in self.layers or ("deploy" in self.layers and scoring.is_deployment(item))
+                or ("mine" in self.layers and item.mine))
 
     # ----- drawing -----
     def _resized(self, e):
@@ -128,7 +146,7 @@ class WorldMap(tk.Canvas):
             self.create_polygon(pts, fill=theme.LAND, outline=theme.OUTLINE, width=1)
         self._hits = []
         for it in self.items:
-            if self.layer_of(it) not in self.layers:
+            if not self.shown(it):
                 continue
             x, y = p.to_px(it.lat, it.lon)
             if -10 <= x <= p.w + 10 and -10 <= y <= p.h + 10:
@@ -148,6 +166,10 @@ class WorldMap(tk.Canvas):
             if it.severity >= 2:
                 self.create_oval(x - r - 5, y - r - 5, x + r + 5, y + r + 5, fill=color, outline="", stipple="gray25")
             self.create_oval(x - r, y - r, x + r, y + r, fill=color, outline=theme.CHARCOAL)
+        if it.mine:       # a pin the owner placed: a square frame around it
+            self.create_rectangle(x - r - 4, y - r - 4, x + r + 4, y + r + 4, outline=theme.BONE, width=1)
+        elif scoring.is_deployment(it):      # a force movement: a ring
+            self.create_oval(x - r - 6, y - r - 6, x + r + 6, y + r + 6, outline=color, width=1, dash=(2, 2))
         if it.uid == self.selected:
             self.create_oval(x - r - 8, y - r - 8, x + r + 8, y + r + 8, outline=theme.BONE, width=2)
         self._hits.append((x, y, it))
@@ -167,7 +189,12 @@ class WorldMap(tk.Canvas):
 
     def _release(self, e):
         if not self._moved:
-            self.pick(e.x, e.y)
+            if self.pin_cb:
+                cb, lat_lon = self.pin_cb, self.proj.to_geo(e.x, e.y)
+                self.set_pin_mode(None)
+                cb(*lat_lon)
+            else:
+                self.pick(e.x, e.y)
         self._drag = None
 
     def pick(self, x, y):

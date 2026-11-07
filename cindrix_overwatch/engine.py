@@ -71,7 +71,7 @@ class Controller:
         self.store = Store(os.path.join(root, "overwatch.db"))
         self.settings = self._load_settings()
         # GDELT allows about one request every five seconds, so asks to that host are spaced out.
-        self.host_gaps = {"api.gdeltproject.org": 10.0}
+        self.host_gaps = {"api.gdeltproject.org": 15.0}
         self._host_next, self._host_lock = {}, threading.Lock()
 
     def _throttle(self, url):
@@ -272,6 +272,8 @@ class Controller:
             except Exception as e:      # a parser bug in one source must not take the scan down
                 return src, None, f"Unexpected problem ({type(e).__name__})"
 
+        # GDELT goes last: its spacing delays are long and must never hold the other sources back
+        due.sort(key=lambda s: s["url"].startswith("https://api.gdeltproject.org"))
         with ThreadPoolExecutor(max_workers=6) as pool:
             for src, items, err in pool.map(work, due):
                 done += 1
@@ -320,7 +322,24 @@ class Controller:
     def all_items(self, hours=72):
         return self.store.items(self.now() - hours * 3600)
 
-    def feed(self, kinds=None, home_only=False, text="", hours=72, limit=300, deploy_only=False):
+    # ----- pins the owner places by hand -----
+    def pin_item(self, uid, lat, lon, place="Pinned by you"):
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise ValueError("That is not a place on the map.")
+        self.store.set_user_pin(uid, place or "Pinned by you", float(lat), float(lon), self.now())
+
+    def pin_item_by_name(self, uid, text):
+        """Pins a story at a place found in the built-in place list. Returns the place name, or '' if it is not known."""
+        found = geo.find_place((text or "").strip())
+        if not found:
+            return ""
+        self.pin_item(uid, found[1], found[2], found[0] + " (pinned by you)")
+        return found[0]
+
+    def unpin_item(self, uid):
+        self.store.clear_user_pin(uid)
+
+    def feed(self, kinds=None, home_only=False, text="", hours=72, limit=300, deploy_only=False, channel=None):
         items = scoring.group(self.all_items(hours))
         hs = self.settings["home_states"]
         text = (text or "").strip().lower()
@@ -331,6 +350,8 @@ class Controller:
             if home_only and not scoring.is_home(it, hs):
                 continue
             if deploy_only and not scoring.is_deployment(it):
+                continue
+            if channel and sources.intel_channel(it) != channel:
                 continue
             if text and text not in (it.title + " " + it.title_en + " " + it.summary + " " + it.source + " " + it.place).lower():
                 continue
@@ -361,12 +382,12 @@ class Controller:
         for _, label, lvl, word, note in self.indicators():
             lines.append(f"  {label}: {word}. {note}")
         day = scoring.group(self.all_items(24))
-        top = sorted(day, key=lambda i: (-i.severity, -i.ts))[:12]
-        lines += ["", "Most serious in the last 24 hours:"]
+        top = scoring.top_warnings(scoring.group(self.all_items(48)), self.settings["home_states"], now)
+        lines += ["", "TOP 10 FOR EARLY WARNING (ranked by severity, force movements, home area, agreeing sources and freshness):"]
         from .model import TRUST_LABELS
-        for it in top:
-            more = f", {it.count} sources" if it.count > 1 else ""
-            lines.append(f"  - {it.shown} ({it.source}; {TRUST_LABELS[it.trust].lower()}{more})")
+        for k, (it, why) in enumerate(top, 1):
+            tag = f"; {', '.join(why)}" if why else ""
+            lines.append(f"  {k}. {it.shown} ({it.source}; {TRUST_LABELS[it.trust].lower()}{tag})")
         if not top:
             lines.append("  Nothing saved yet. Refresh while online.")
         home = [i for i in day if scoring.is_home(i, self.settings['home_states'])]

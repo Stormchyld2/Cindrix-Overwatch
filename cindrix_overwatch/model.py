@@ -3,9 +3,9 @@
 import hashlib
 from dataclasses import dataclass, field
 
-KINDS = ("military", "conflict", "hazard", "weather", "space", "health", "news")
+KINDS = ("military", "conflict", "hazard", "weather", "space", "health", "news", "cyber")
 KIND_LABELS = {"military": "MILITARY", "conflict": "CONFLICT", "hazard": "HAZARD", "weather": "WEATHER",
-               "space": "SPACE", "health": "HEALTH", "news": "NEWS"}
+               "space": "SPACE", "health": "HEALTH", "news": "NEWS", "cyber": "CYBER"}
 TRUST = ("official", "wire", "outlet")
 TRUST_LABELS = {"official": "Official source", "wire": "Wire or agency", "outlet": "Single outlet"}
 SEVERITY_WORDS = ("Info", "Notice", "Warning", "Severe")
@@ -31,6 +31,7 @@ class Item:
     first_seen: float = 0.0         # when Overwatch first saw it (set by the store)
     title_en: str = ""              # English translation of the title, when one was made (kept apart from the original)
     summary_en: str = ""
+    mine: bool = False              # pinned by the owner (a pin the owner placed always wins over any other)
 
     def __post_init__(self):
         self.title = " ".join((self.title or "").split())[:300]

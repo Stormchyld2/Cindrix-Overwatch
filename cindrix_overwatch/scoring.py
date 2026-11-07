@@ -183,3 +183,53 @@ def indicators(items, home_states, now):
     out.append(("supply", "Supply news", lvl, ("NORMAL", "WATCH", "ELEVATED", "HIGH")[lvl],
                 f"{len(sup)} headlines, 48 h" if sup else "Nothing unusual"))
     return out
+
+
+_KIND_WEIGHT = {"military": 1.5, "conflict": 1.5, "hazard": 1.0, "health": 1.0, "weather": 1.0, "space": 0.5, "news": 0.0}
+_TRUST_WEIGHT = {"official": 1.5, "wire": 1.0, "outlet": 0.0}
+
+
+def warning_score(item, home_states, now):
+    """How much an item matters for early warning of a long emergency. Plain arithmetic, no AI: severity, force movements,
+    the home area, how many sources agree, how much the source can be trusted, and how fresh it is."""
+    s = item.severity * 3.0
+    if is_deployment(item):
+        s += 4
+    if is_home(item, home_states):
+        s += 3
+    s += _TRUST_WEIGHT.get(item.trust, 0.0) + min(max(item.count - 1, 0), 4) * 1.5 + _KIND_WEIGHT.get(item.kind, 0.0)
+    s += max(0.0, 2.0 - max(0.0, now - item.ts) / 3600 / 12)
+    return s
+
+
+def why_it_matters(item, home_states):
+    """Short plain reasons an item is near the top."""
+    out = []
+    if item.severity >= 2:
+        out.append("severe" if item.severity == 3 else "warning")
+    if is_deployment(item):
+        out.append("force movement")
+    if is_home(item, home_states):
+        out.append("home area")
+    if item.count > 1:
+        out.append(f"{item.count} sources")
+    if item.trust == "official":
+        out.append("official source")
+    return out
+
+
+def top_warnings(items, home_states, now, n=10, per_source=3):
+    """The n items most relevant for early warning, best first, as (item, reasons). Sports and entertainment, cyber
+    stories and anything older than two days are left out, and no one source can fill the list."""
+    from .ai import off_topic
+    pool = [i for i in items if i.kind != "cyber" and now - i.ts <= 48 * 3600 and not off_topic(i)]
+    pool.sort(key=lambda i: (-warning_score(i, home_states, now), -i.ts))
+    out, taken = [], {}
+    for it in pool:
+        if taken.get(it.source_id, 0) >= per_source:
+            continue
+        taken[it.source_id] = taken.get(it.source_id, 0) + 1
+        out.append((it, why_it_matters(it, home_states)))
+        if len(out) >= n:
+            break
+    return out

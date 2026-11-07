@@ -12,15 +12,16 @@ from tkinter import messagebox, ttk
 
 from . import __version__, ai, geo, theme
 from .engine import Controller
-from .mapview import WorldMap
-from . import tor as _tor, torbrowser, ui_extra
+from .mapview import DEFAULT_LAYERS, WorldMap
+from . import tor as _tor, torbrowser, ui_extra, ui_intel
 from .model import KIND_LABELS, SEVERITY_WORDS, TRUST_LABELS
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 FEED_LIMIT = 80
 FEED_CHIPS = [("All", None), ("Military", {"military"}), ("Hazards", {"hazard", "weather", "space", "health"}),
               ("News", {"news", "conflict"}), ("Deployments", "deploy"), ("Home only", "home")]
-LAYER_CHIPS = [("Military", "military"), ("Conflict", "conflict"), ("Hazards", "hazard"), ("News", "news")]
+LAYER_CHIPS = [("Military", "military"), ("Troop movements", "deploy"), ("Conflict", "conflict"), ("Hazards", "hazard"),
+               ("Weather", "weather"), ("News", "news"), ("My pins", "mine")]
 
 
 def default_root():
@@ -70,7 +71,7 @@ class App:
         self.auto = auto
         self.selected = None
         self.feed_filter = FEED_CHIPS[0]
-        self.layers = {"military", "conflict", "hazard", "news"}
+        self.layers = set(DEFAULT_LAYERS)
         self.search = tk.StringVar()
         self.search.trace_add("write", lambda *a: self._render_feed())
         self.page = None
@@ -150,7 +151,7 @@ class App:
             tk.Label(top, image=self.icon_small, bg=theme.PANEL).pack(side="left", padx=(16, 8), pady=8)
         self.label(top, "CINDRIX OVERWATCH", self.f_title).pack(side="left", padx=(0, 18))
         self.nav = {}
-        for key, text in (("war", "War room"), ("brief", "Brief"), ("settings", "Settings")):
+        for key, text in (("war", "War room"), ("intel", "Intel"), ("brief", "Brief"), ("settings", "Settings")):
             b = tk.Button(top, text=text, command=lambda k=key: self.show_page(k), relief="flat", bd=0, padx=14, pady=7,
                           font=self.f_bold, cursor="hand2", bg=theme.PANEL, fg=theme.BONE,
                           activebackground=theme.PANEL_HIGH, activeforeground=theme.BONE)
@@ -163,12 +164,13 @@ class App:
         self.body.grid(row=1, column=0, sticky="nsew")
         self.body.rowconfigure(0, weight=1)
         self.body.columnconfigure(0, weight=1)
-        self.pages = {k: tk.Frame(self.body, bg=theme.CHARCOAL) for k in ("war", "brief", "settings")}
+        self.pages = {k: tk.Frame(self.body, bg=theme.CHARCOAL) for k in ("war", "intel", "brief", "settings")}
         for f in self.pages.values():
             f.grid(row=0, column=0, sticky="nsew")
         self.statusbar = self.label(r, "", self.f_small, theme.MUTED, bg=theme.PANEL)
         self.statusbar.grid(row=2, column=0, sticky="ew", ipady=6, padx=0)
         self._build_war(self.pages["war"])
+        self.intel = ui_intel.IntelPage(self, self.pages["intel"])
         self._build_brief(self.pages["brief"])
         self._build_settings(self.pages["settings"])
 
@@ -182,6 +184,8 @@ class App:
         self.pages[key].tkraise()
         for k, b in self.nav.items():
             b.configure(bg=theme.BLUE if k == key else theme.PANEL, fg=theme.ON_BLUE if k == key else theme.BONE)
+        if key == "intel":
+            self.intel.show()
         if key == "brief":
             self._render_brief_buttons()
             self._render_brief()
@@ -332,6 +336,8 @@ class App:
             note.configure(text=n)
         items = self.c.feed(limit=400)
         self.map.set_data(items, geo.home_point(self.c.settings["home_states"]))
+        if self.page == "intel":
+            self.intel.render()
         self._render_feed()
         self._render_watch()
         self._render_timeline()
@@ -551,6 +557,20 @@ class App:
             self._pinning = False
             self.q.put(("tr", n))      # same redraw path as translations
         threading.Thread(target=run, daemon=True).start()
+
+    def begin_pin(self, item, done):
+        """Pin mode: the next click on the map places this story there. The pin is yours and stays until you remove it."""
+        self.show_page("war")
+        self.status_top.configure(text="Click the map where this story belongs", fg=theme.AMBER)
+
+        def placed(lat, lon):
+            self.status_top.configure(text="", fg=theme.MUTED)
+            try:
+                self.c.pin_item(item.uid, lat, lon)
+            except ValueError:
+                return
+            done("")
+        self.map.set_pin_mode(placed)
 
     def _open_selected(self):
         if self.selected:

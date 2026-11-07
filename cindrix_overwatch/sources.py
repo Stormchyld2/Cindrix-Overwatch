@@ -51,12 +51,23 @@ BUILTIN = [
     _s("un", "UN News", "News", "news", "official", "https://news.un.org/feed/subscribe/en/news/all/rss.xml"),
     _s("who", "WHO news", "Health", "health", "official",
        "https://www.who.int/rss-feeds/news-english.xml", every=120),
+    # ----- more of the Discord feed bot's list: defense analysis, world, cyber -----
+    _s("wotr", "War on the Rocks", "Military", "military", "outlet", "https://warontherocks.com/feed/", "rss", 60),
+    _s("taskpurpose", "Task & Purpose", "Military", "military", "outlet", "https://taskandpurpose.com/feed/"),
+    _s("airspace", "Air & Space Forces Magazine", "Military", "military", "outlet", "https://www.airandspaceforces.com/feed/"),
+    _s("guardian", "The Guardian World", "News", "news", "outlet", "https://www.theguardian.com/world/rss"),
+    _s("cisa", "CISA cyber advisories", "Cyber", "cyber", "official", "https://www.cisa.gov/cybersecurity-advisories/all.xml", "rss", 60),
+    _s("bleeping", "BleepingComputer", "Cyber", "cyber", "outlet", "https://www.bleepingcomputer.com/feed/"),
+    _s("krebs", "Krebs on Security", "Cyber", "cyber", "outlet", "https://krebsonsecurity.com/feed/", "rss", 60),
+    _s("thn", "The Hacker News", "Cyber", "cyber", "outlet", "https://feeds.feedburner.com/TheHackersNews"),
+    # GDELT allows one request every five seconds per connection and blocks a connection for about 15 minutes when asked faster:
+    # asked once an hour, last in every refresh, 15 seconds apart (see Controller.host_gaps)
     _s("gdelt-conflict", "GDELT: conflict", "News", "conflict", "outlet",
        "https://api.gdeltproject.org/api/v2/doc/doc?query=%28airstrike%20OR%20missile%20OR%20shelling%20OR%20offensive%29%20sourcelang%3Aeng"
-       "&mode=artlist&maxrecords=60&format=json&sort=datedesc&timespan=6h", "gdelt", 30),
+       "&mode=artlist&maxrecords=60&format=json&sort=datedesc&timespan=6h", "gdelt", 60),
     _s("gdelt-military", "GDELT: military", "News", "military", "outlet",
        "https://api.gdeltproject.org/api/v2/doc/doc?query=%28navy%20OR%20warship%20OR%20%22air%20force%22%20OR%20troops%20OR%20nato%29%20sourcelang%3Aeng"
-       "&mode=artlist&maxrecords=60&format=json&sort=datedesc&timespan=6h", "gdelt", 30),
+       "&mode=artlist&maxrecords=60&format=json&sort=datedesc&timespan=6h", "gdelt", 60),
     # ----- early warning: defense press, conflict analysis, advisories, Asia, hurricanes (each fetched and read from a real runner) -----
     _s("usgs-sig", "USGS significant quakes (week)", "Hazards", "hazard", "official",
        "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson", "usgs", 30, "checked"),
@@ -121,7 +132,6 @@ TRIAL = [
     # (403), CISA (403), FEMA (404), Focus Taiwan (404), Stars and Stripes (404), Xinhua (http only).
     ("isw", "Institute for the Study of War", "Conflict", "conflict", "outlet", "https://understandingwar.org/feed"),
     ("toi", "Times of Israel", "Conflict", "conflict", "outlet", "https://www.timesofisrael.com/feed/"),
-    ("cisa", "CISA cyber advisories", "Hazards", "news", "official", "https://www.cisa.gov/cybersecurity-advisories/all.xml"),
     ("stripes", "Stars and Stripes", "Military", "military", "outlet", "https://www.stripes.com/feeds/rss/"),
     # From the owner's second list: wrong or retired addresses (404 or "Invalid url"). The assistant can find the right ones.
     ("janes", "Janes defence headlines", "Military", "military", "outlet", "https://www.janes.com/feeds/news"),
@@ -129,6 +139,21 @@ TRIAL = [
      "https://www.reutersagency.com/feed/?best-topics=world-news&post_type=best"),
     ("nws-us", "NWS active alerts (all US)", "Hazards", "weather", "official", "https://alerts.weather.gov/cap/us.php?x=0"),
 ]
+
+
+# The Intel page reads the same feeds the Discord bot posted, in the bot's four channels.
+INTEL_CHANNELS = [("military", "Military", ("military",)), ("world", "World news", ("news", "conflict")),
+                  ("cyber", "Cyber", ("cyber",)), ("alerts", "Alerts and weather", ("hazard", "weather", "space", "health"))]
+
+
+def intel_channel(item):
+    """Which Intel channel an item belongs to. Travel advisories sit with the alerts, as they did in the bot."""
+    if item.source_id == "travel":
+        return "alerts"
+    for key, _, kinds in INTEL_CHANNELS:
+        if item.kind in kinds:
+            return key
+    return "world"
 
 
 def trial_sources():
@@ -160,7 +185,7 @@ def custom_sources(entries):
     for i, e in enumerate(entries or []):
         if not isinstance(e, dict) or not valid_feed_url(e.get("url")):
             continue
-        kind = e.get("kind") if e.get("kind") in ("military", "conflict", "hazard", "health", "news") else "news"
+        kind = e.get("kind") if e.get("kind") in ("military", "conflict", "hazard", "health", "news", "cyber") else "news"
         onion = bool(re.search(r"\.onion(?::|/|$)", urlparse(e["url"]).netloc.lower() + "/"))
         out.append(_s(f"custom-{i}", str(e.get("name") or "Custom feed")[:60], "Mine (Tor)" if onion else "Mine", kind,
                       "outlet", e["url"], "rss", 30, "custom", tor=onion))

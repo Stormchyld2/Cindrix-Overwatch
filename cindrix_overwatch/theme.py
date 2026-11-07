@@ -18,7 +18,7 @@ RED = "#E5534B"
 
 LEVEL_COLORS = (GREEN, AMBER, ORANGE, RED)
 KIND_COLORS = {"military": BLUE, "conflict": RED, "hazard": AMBER, "weather": AMBER, "space": AMBER,
-               "health": ORANGE, "news": MUTED}
+               "health": ORANGE, "news": MUTED, "cyber": "#B58CF2"}
 BUTTON_RADIUS = 14
 
 HEADING_FONTS = ("Bahnschrift SemiBold Condensed", "Bahnschrift", "Arial Narrow", "Segoe UI Semibold", "Segoe UI")

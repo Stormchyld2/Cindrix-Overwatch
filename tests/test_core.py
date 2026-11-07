@@ -2,6 +2,7 @@ import os
 import tempfile
 import threading
 import unittest
+import unittest.mock
 
 from cindrix_overwatch import lang, engine, feeds, geo, scoring, sources
 from cindrix_overwatch.model import Item
@@ -936,6 +937,82 @@ class Translation(unittest.TestCase):
         self.assertAlmostEqual(geo.find_place("Seoul")[1], 37.57)
         self.assertEqual(geo.find_place("Strike in Gaza City overnight")[0], "Gaza City")
         self.assertEqual(geo.find_place("Ukraine")[0], "Ukraine")
+
+    def test_intel_channels_follow_the_discord_bot_and_cyber_is_its_own_kind(self):
+        ids = [x["id"] for x in sources.BUILTIN]
+        self.assertEqual(len(ids), len(set(ids)))
+        for want in ("wotr", "taskpurpose", "airspace", "guardian", "cisa", "bleeping", "krebs", "thn"):
+            self.assertIn(want, ids)
+        by = {x["id"]: x for x in sources.BUILTIN}
+        self.assertEqual({by[i]["kind"] for i in ("cisa", "bleeping", "krebs", "thn")}, {"cyber"})
+        mk = lambda sid, kind: Item(sid, sid, kind, "wire", "Something happened", ts=S.NOW, uid=sid + kind)
+        self.assertEqual(sources.intel_channel(mk("a", "military")), "military")
+        self.assertEqual(sources.intel_channel(mk("a", "conflict")), "world")
+        self.assertEqual(sources.intel_channel(mk("a", "cyber")), "cyber")
+        self.assertEqual(sources.intel_channel(mk("a", "weather")), "alerts")
+        self.assertEqual(sources.intel_channel(mk("travel", "conflict")), "alerts")
+
+    def test_gdelt_is_hourly_and_always_last_in_a_refresh(self):
+        g = [x for x in sources.BUILTIN if "gdeltproject" in x["url"]]
+        self.assertEqual(len(g), 2)
+        self.assertTrue(all(x["every"] >= 60 for x in g))
+        order = []
+
+        class OneAtATime:           # runs the work in the order it was handed over, so the order is the order of asking
+            def __init__(self, max_workers=None): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def map(self, fn, it): return [fn(x) for x in it]
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (order.append(u) or (503, "")), lambda: S.NOW)
+        try:
+            c.host_gaps = {}
+            with unittest.mock.patch.object(engine, "ThreadPoolExecutor", OneAtATime):
+                c.refresh(force=True)
+        finally:
+            c.close()
+        self.assertTrue(order)
+        first_gdelt = min(i for i, u in enumerate(order) if "gdeltproject" in u)
+        self.assertTrue(all("gdeltproject" in u for u in order[first_gdelt:]))
+
+    def test_your_own_pin_survives_wins_and_can_be_removed(self):
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        try:
+            c.store.upsert([Item("x", "A", "news", "wire", "Talks continue in Tbilisi", ts=S.NOW - 60, uid="p1"),
+                            Item("y", "B", "news", "wire", "Quiet day with no place named", ts=S.NOW - 60, uid="p2")], S.NOW)
+            get = lambda u: next(i for i in c.all_items(72) if i.uid == u)
+            self.assertEqual(c.pin_item_by_name("p2", "Kharkiv"), "Kharkiv")
+            self.assertTrue(get("p2").mine)
+            self.assertAlmostEqual(get("p2").lat, 49.99)
+            c.pin_item("p1", 10.0, 20.0)                        # wins even over a pin the built-in list made
+            self.assertEqual((get("p1").lat, get("p1").mine), (10.0, True))
+            self.assertEqual(c.pin_item_by_name("p2", "Nowhereville"), "")
+            with self.assertRaises(ValueError):
+                c.pin_item("p2", 120.0, 0.0)
+            c.store.upsert([Item("y", "B", "news", "wire", "Quiet day with no place named", ts=S.NOW - 60, uid="p2")], S.NOW)
+            self.assertTrue(get("p2").mine)                     # a refresh does not undo it
+            c.unpin_item("p2")
+            self.assertFalse(get("p2").mine)
+        finally:
+            c.close()
+
+    def test_top_ten_is_ranked_for_early_warning(self):
+        mk = lambda uid, src, kind, title, sev=0, trust="wire", age=60, count=1: Item(src, src, kind, trust, title, ts=S.NOW - age, uid=uid,
+                                                                                     severity=sev)
+        rows = [mk("a", "navy", "military", "Carrier strike group deploys to the Mediterranean", 1, "official"),
+                mk("b", "espn", "news", "Football playoffs: big game tonight"),
+                mk("c", "krebs", "cyber", "New botnet found", 3),
+                mk("d", "old", "conflict", "Fighting near the border", 3, age=5 * 86400),
+                mk("e", "nws", "weather", "Winter storm warning for Marion County, West Virginia", 2, "official")]
+        rows[4].states = ["WV"]
+        rows += [mk(f"s{k}", "spam", "conflict", f"Shelling reported near town number {k}", 1) for k in range(6)]
+        top = scoring.top_warnings(rows, ["WV"], S.NOW)
+        uids = [i.uid for i, _ in top]
+        self.assertEqual(uids[0], "e")                          # severe-ish, home area, official
+        self.assertIn("a", uids[:3])                            # a force movement ranks high
+        for gone in ("b", "c", "d"):
+            self.assertNotIn(gone, uids)                        # sports, cyber and stale items are left out
+        self.assertLessEqual(sum(1 for u in uids if u.startswith("s")), 3)    # one source cannot fill the list
+        self.assertIn("home area", dict((i.uid, w) for i, w in top)["e"])
 
     def test_auto_translate_only_foreign_and_not_twice(self):
         c, srv = self.make("Russia orders mobilization of reservists on the border")

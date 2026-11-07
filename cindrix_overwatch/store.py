@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS health (
   source_id TEXT PRIMARY KEY, ok INTEGER, last_ok REAL, last_try REAL, count INTEGER, error TEXT);
 CREATE TABLE IF NOT EXISTS translations (uid TEXT PRIMARY KEY, title_en TEXT, summary_en TEXT, ts REAL);
 CREATE TABLE IF NOT EXISTS ai_pins (uid TEXT PRIMARY KEY, place TEXT, lat REAL, lon REAL, ts REAL);
+CREATE TABLE IF NOT EXISTS user_pins (uid TEXT PRIMARY KEY, place TEXT, lat REAL, lon REAL, ts REAL);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 """
 COLS = "uid,source_id,source,kind,trust,title,url,summary,ts,lat,lon,place,severity,states,first_seen,last_seen"
@@ -65,10 +66,14 @@ class Store:
                                    (since_ts, limit)).fetchall()
             tr = {r[0]: (r[1], r[2]) for r in self.db.execute("SELECT uid,title_en,summary_en FROM translations")}
             pins = {r[0]: (r[1], r[2], r[3]) for r in self.db.execute("SELECT uid,place,lat,lon FROM ai_pins WHERE lat IS NOT NULL")}
+            mine = {r[0]: (r[1], r[2], r[3]) for r in self.db.execute("SELECT uid,place,lat,lon FROM user_pins")}
         out = [self._item(r) for r in rows]
         for it in out:
+            if it.uid in mine:      # a pin the owner placed wins over everything else
+                it.place, it.lat, it.lon, it.mine = mine[it.uid][0], mine[it.uid][1], mine[it.uid][2], True
+        for it in out:
             # a place the model named for a story the built-in list could not place (never overrides a real pin)
-            if it.lat is None and it.uid in pins:
+            if it.lat is None and it.uid in pins and not it.mine:
                 it.place, it.lat, it.lon = pins[it.uid][0] + " (placed by AI)", pins[it.uid][1], pins[it.uid][2]
         for it in out:
             if it.uid in tr:
@@ -86,6 +91,17 @@ class Store:
     def set_ai_pin(self, uid, place, lat, lon, now):
         with self.lock:
             self.db.execute("INSERT OR REPLACE INTO ai_pins VALUES (?,?,?,?,?)", (uid, place, lat, lon, now))
+            self.db.commit()
+
+    # pins the owner makes by hand; they survive refreshes and win over built-in and AI pins
+    def set_user_pin(self, uid, place, lat, lon, now):
+        with self.lock:
+            self.db.execute("INSERT OR REPLACE INTO user_pins VALUES (?,?,?,?,?)", (uid, place, lat, lon, now))
+            self.db.commit()
+
+    def clear_user_pin(self, uid):
+        with self.lock:
+            self.db.execute("DELETE FROM user_pins WHERE uid=?", (uid,))
             self.db.commit()
 
     def tried_ai_pin(self, uid):
@@ -109,6 +125,7 @@ class Store:
             self.db.execute("DELETE FROM items WHERE ts<? AND first_seen<?", (older_than_ts, older_than_ts))
             self.db.execute("DELETE FROM translations WHERE uid NOT IN (SELECT uid FROM items)")
             self.db.execute("DELETE FROM ai_pins WHERE uid NOT IN (SELECT uid FROM items)")
+            self.db.execute("DELETE FROM user_pins WHERE uid NOT IN (SELECT uid FROM items)")
             self.db.commit()
 
     def clear(self):
@@ -116,6 +133,7 @@ class Store:
             self.db.execute("DELETE FROM items")
             self.db.execute("DELETE FROM translations")
             self.db.execute("DELETE FROM ai_pins")
+            self.db.execute("DELETE FROM user_pins")
             self.db.execute("DELETE FROM health")
             self.db.commit()
 
