@@ -176,7 +176,7 @@ fun LockSection(vm: OverwatchViewModel) {
         Text("Ask for an unlock when Watchtower opens, and again after you have been away from it for a minute. Android shows its own unlock screen, so it is always in front.", fontSize = 12.sp, color = Ow.Muted)
         LockMode.entries.forEach { m ->
             val ok = AppLock.available(ctx, m)
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Ow.PanelHigh).clickable(enabled = ok) { vm.setLockMode(m) }.padding(12.dp),
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Ow.PanelHigh).clickable(enabled = ok) { vm.chooseLock(m) }.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(m.label, fontSize = 14.sp, color = if (ok) Ow.Bone else Ow.Muted)

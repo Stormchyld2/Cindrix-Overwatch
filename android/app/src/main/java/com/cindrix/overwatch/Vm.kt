@@ -323,8 +323,8 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
 
     fun address(vc: ViewCam, sub: Boolean): String? = vc.local?.let { Cameras.streamAddress(it, sub) } ?: vc.linked?.let { l -> linkHost?.let { l.address(it, sub) } }
 
-    fun setWtMode(m: Int) { wtMode = m; engine.wtMode = m }
-    fun setWtOne(id: String) { wtOne = id; engine.wtOne = id }
+    fun chooseMode(m: Int) { wtMode = m; engine.wtMode = m }
+    fun chooseOne(id: String) { wtOne = id; engine.wtOne = id }
 
     /** Fills the four docks with valid cameras (the saved ones first), so the 4-camera view is never empty while cameras exist. */
     fun fixedSlots(): List<String> {
@@ -344,7 +344,7 @@ class OverwatchViewModel(app: Application) : AndroidViewModel(app) {
         engine.wtSlots = s
     }
 
-    fun setLockMode(m: LockMode) { lockMode = m; engine.lockMode = m }
+    fun chooseLock(m: LockMode) { lockMode = m; engine.lockMode = m }
 
     /** Finds the home PC (over Wi-Fi if at home, through the VPN if away) and fetches its camera list. */
     fun connectHome(ctx: android.content.Context) {

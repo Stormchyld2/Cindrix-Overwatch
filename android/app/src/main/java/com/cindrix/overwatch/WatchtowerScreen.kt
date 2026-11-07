@@ -106,7 +106,7 @@ private fun Viewer(vm: OverwatchViewModel) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         row.forEach { vc ->
                             CameraTile(vm, vc, sub = true, sound = false, ctl = ctl(vc.id), modifier = Modifier.weight(1f).aspectRatio(4f / 3f)) {
-                                vm.setWtOne(vc.id); vm.setWtMode(1)
+                                vm.chooseOne(vc.id); vm.chooseMode(1)
                             }
                         }
                         if (row.size == 1) Box(Modifier.weight(1f))
@@ -125,7 +125,7 @@ private fun Viewer(vm: OverwatchViewModel) {
                         note = if (ok > 0) "Recording..." else "Wait for the picture to show, then record."
                     }
                 }
-                ControlButton(if (vm.wtMode == 1) "Show 4" else "Show 1", Modifier.weight(1f)) { vm.setWtMode(if (vm.wtMode == 1) 4 else 1) }
+                ControlButton(if (vm.wtMode == 1) "Show 4" else "Show 1", Modifier.weight(1f)) { vm.chooseMode(if (vm.wtMode == 1) 4 else 1) }
                 ControlButton(if (sound) "Sound on" else "Sound off", Modifier.weight(1f)) { sound = !sound }
             }
             if (note.isNotEmpty()) Text(note, fontSize = 12.sp, color = Ow.Muted)
@@ -146,7 +146,7 @@ private fun Viewer(vm: OverwatchViewModel) {
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if ((vm.wtMode == 1 && vc.id == one?.id) || (vm.wtMode == 4 && dock >= 0)) Ow.PanelHigh else Ow.Panel)
                         .clickable {
                             drawer = false
-                            if (vm.wtMode == 1) vm.setWtOne(vc.id) else pendingDock = vc
+                            if (vm.wtMode == 1) vm.chooseOne(vc.id) else pendingDock = vc
                         }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(vc.name, fontWeight = FontWeight.SemiBold)
