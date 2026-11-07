@@ -81,13 +81,12 @@ fun OverwatchApp(vm: OverwatchViewModel) {
                 1 -> IntelScreen(vm)
                 2 -> FeedScreen(vm)
                 3 -> BriefScreen(vm)
-                4 -> SourcesScreen(vm)
                 else -> SettingsScreen(vm)
             }
         }
         NavigationBar(containerColor = Ow.Panel) {
-            listOf("Map", "Intel", "Feed", "Brief", "Sources", "Settings").forEachIndexed { i, label ->
-                NavigationBarItem(selected = vm.tab == i, onClick = { vm.tab = i }, icon = {}, label = { Text(label, fontSize = 11.sp, maxLines = 1) },
+            listOf("Map", "Intel", "Feed", "Brief", "Settings").forEachIndexed { i, label ->
+                NavigationBarItem(selected = vm.tab == i, onClick = { vm.tab = i }, icon = {}, label = { Text(label, fontSize = 12.sp, maxLines = 1) },
                     alwaysShowLabel = true)
             }
         }
@@ -415,51 +414,55 @@ fun BriefScreen(vm: OverwatchViewModel) {
     }
 }
 
+/** The kind a new feed files under for each of the four Intel categories. */
+private val FEED_CATEGORIES = listOf("military" to "Military", "news" to "World news", "cyber" to "Cyber", "hazard" to "Alerts and weather")
+
 @Composable
-fun SourcesScreen(vm: OverwatchViewModel) {
+fun FeedsSection(vm: OverwatchViewModel) {
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf("news") }
     var note by remember { mutableStateOf("") }
     val now = nowSeconds()
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item {
-            Button(onClick = { shareSourceList(ctx, vm.sources) }, shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Share source list (CSV)") }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Feeds", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text("Every feed Overwatch reads, each with its own switch. Add your own below and it appears in this list with a switch too.", fontSize = 12.sp, color = Ow.Muted)
+        Text("Add your own feed (RSS or Atom, https only)", fontWeight = FontWeight.SemiBold)
+        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Name") })
+        OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Address") })
+        Text("Category (where it shows on the Intel dashboard)", fontSize = 12.sp, color = Ow.Muted)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(FEED_CATEGORIES) { (k, label) -> FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(label) }) }
         }
-        item {
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Add your own feed (RSS or Atom, https only)", fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Name") })
-                OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Address") })
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(listOf("news", "military", "conflict", "hazard", "health")) { k -> FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(k) }) }
+        Button(onClick = {
+            val err = vm.addFeed(name, url, kind)
+            note = err ?: "Added. It is in the list below and will be checked now."
+            if (err == null) { name = ""; url = "" }
+        }, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Add feed") }
+        if (note.isNotEmpty()) Text(note, fontSize = 12.sp, color = Ow.Muted)
+        Button(onClick = { shareSourceList(ctx, vm.sources) }, shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Share source list (CSV)") }
+        vm.sources.groupBy { it.src.group }.forEach { (group, rows) ->
+            Text(group.uppercase(), fontSize = 11.sp, color = Ow.Muted, modifier = Modifier.padding(top = 8.dp))
+            rows.forEach { row ->
+                val h = row.health
+                val status = when {
+                    !row.enabled -> "turned off"
+                    h == null -> "not checked yet"
+                    h.ok -> "working, ${h.count} items, " + ago(h.lastOk ?: 0.0, now)
+                    else -> "problem: " + h.error.ifEmpty { "failed" }
                 }
-                Button(onClick = {
-                    val err = vm.addFeed(name, url, kind)
-                    note = err ?: "Added. It will be checked now."
-                    if (err == null) { name = ""; url = "" }
-                }, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Add feed") }
-                if (note.isNotEmpty()) Text(note, fontSize = 12.sp, color = Ow.Muted)
-            }
-        }
-        items(vm.sources, key = { it.src.id }) { row ->
-            val h = row.health
-            val status = when {
-                !row.enabled -> "turned off"
-                h == null -> "not checked yet"
-                h.ok -> "working, ${h.count} items, " + ago(h.lastOk ?: 0.0, now)
-                else -> "problem: " + h.error.ifEmpty { "failed" }
-            }
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Ow.Panel).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(row.src.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    Text("${row.src.group}  ·  ${row.src.trust.label}", fontSize = 11.sp, color = Ow.Muted)
-                    Text(status, fontSize = 11.sp, color = if (h != null && !h.ok && row.enabled) Ow.Red else Ow.Muted)
+                val cat = INTEL_CHANNELS.firstOrNull { row.src.kind in it.kinds }?.label ?: ""
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Ow.PanelHigh).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(row.src.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = if (row.enabled) Ow.Bone else Ow.Muted)
+                        Text("$cat  ·  ${row.src.trust.label}", fontSize = 11.sp, color = Ow.Muted)
+                        Text(status, fontSize = 11.sp, color = if (h != null && !h.ok && row.enabled) Ow.Red else Ow.Muted)
+                    }
+                    if (row.custom >= 0) TextButton(onClick = { vm.removeFeed(row.custom) }) { Text("Remove") }
+                    Switch(checked = row.enabled, onCheckedChange = { vm.setEnabled(row.src.id, it) })
                 }
-                if (row.custom >= 0) TextButton(onClick = { vm.removeFeed(row.custom) }) { Text("Remove") }
-                else Switch(checked = row.enabled, onCheckedChange = { vm.setEnabled(row.src.id, it) })
             }
         }
     }
@@ -477,6 +480,7 @@ fun SettingsScreen(vm: OverwatchViewModel) {
             Button(onClick = { vm.saveHome(home) }, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Save home") }
             if (vm.message.isNotEmpty()) Text(vm.message, fontSize = 12.sp, color = Ow.Muted)
         }
+        FeedsSection(vm)
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Saved history", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text("${vm.storedCount} items kept for 30 days on this device. They show even with no internet.", fontSize = 12.sp, color = Ow.Muted)
