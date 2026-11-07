@@ -18,7 +18,7 @@ import time
 import urllib.error
 import urllib.request
 
-from . import lang, scoring
+from . import geo, lang, scoring
 
 SIZE_TAGS = ("9b", "4b", "2b")
 
@@ -526,6 +526,23 @@ def build_brief(items, parts, summaries, bottom, changes=None):
     return "\n".join(out).rstrip()
 
 
+PIN_SYSTEM = ("You say where a news headline takes place. Use only a real place the headline names or clearly means "
+              "(a government's statement belongs to its capital). Never guess. If there is no clear place, say none.")
+
+
+def parse_places(text, count):
+    """Reads the model's answer, one `N: Place, Country` line per headline. Returns {number: 'Place, Country'}."""
+    out = {}
+    for line in (text or "").splitlines():
+        m = re.match(r"\s*(\d{1,3})\s*[:.)-]\s*(.+?)\s*$", line)
+        if not m:
+            continue
+        n, place = int(m.group(1)), m.group(2).strip(" *_`\"'")
+        if 1 <= n <= count and place and not re.match(r"(?i)^(none|unknown|n/?a|no clear place)\b", place) and len(place) <= 80:
+            out.setdefault(n, place)
+    return out
+
+
 class AiService:
     """Starts the model when needed, writes the brief, stops again. Used by the window and the tests."""
 
@@ -534,6 +551,7 @@ class AiService:
         self.host, self.lock = None, threading.Lock()
         self.host_factory, self.mt_factory = host_factory, mt_factory
         self.trans_lock = threading.Lock()
+        self.pin_lock = threading.Lock()
         self.last_error = ""
 
     def root(self):
@@ -701,6 +719,50 @@ class AiService:
             return done
         finally:
             self.trans_lock.release()
+
+    def pending_pins(self, hours=72, limit=24):
+        """Stories with no pin that matter on a map and that the model has not been asked about yet."""
+        out = []
+        for it in self.c.all_items(hours):
+            if it.pinned or it.kind in ("space", "weather") or self.c.store.tried_ai_pin(it.uid):
+                continue
+            out.append(it)
+            if len(out) >= limit:
+                break
+        return out
+
+    def auto_pin(self, say=None, limit=24):
+        """Asks the model WHICH PLACE each unpinned story is about, then finds that place in the built-in list.
+        The model never supplies coordinates, so it cannot invent a location: a place not in the list gets no pin.
+        Only runs when the AI is switched on. Returns how many stories got a pin."""
+        st = self.c.settings
+        if not st.get("ai_enabled", False) or not st.get("ai_pins", True):
+            return 0
+        if not self.pin_lock.acquire(blocking=False):
+            return 0
+        try:
+            todo = self.pending_pins(limit=limit)
+            if not todo:
+                return 0
+            host = self._ensure(say)
+            lines = "\n".join(f"{n}. {sanitize_headline(it.shown)}" for n, it in enumerate(todo, 1))
+            out = host.chat(PIN_SYSTEM, "For each numbered headline, write one line `N: Place, Country`, or `N: none`. "
+                                        "No other text.\n\n" + lines, max_tokens=60 + 24 * len(todo), temperature=0.0)
+            named = parse_places(out, len(todo))
+            done = 0
+            for n, it in enumerate(todo, 1):
+                found = None
+                if n in named:
+                    # "City, Country": look for the most specific part first, or the country would win by length
+                    found = geo.find_place(named[n].split(",")[0]) or geo.find_place(named[n])
+                if found:
+                    self.c.store.set_ai_pin(it.uid, found[0], found[1], found[2], self.c.now())
+                    done += 1
+                else:
+                    self.c.store.set_ai_pin(it.uid, "", None, None, self.c.now())   # tried; do not ask again
+            return done
+        finally:
+            self.pin_lock.release()
 
     def stop(self):
         if self.host:

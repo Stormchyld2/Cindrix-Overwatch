@@ -884,6 +884,51 @@ class Translation(unittest.TestCase):
         st.clear()
         self.assertFalse(st.tried_translation("u1"))
 
+    def test_parse_places_reads_numbered_lines(self):
+        got = ai.parse_places("1: Kyiv, Ukraine\n2: none\n3. **Gaza**\nnoise\n9: Paris\n4: Unknown", 4)
+        self.assertEqual(got, {1: "Kyiv, Ukraine", 3: "Gaza"})
+
+    def test_store_overlays_ai_pin_but_never_over_a_real_pin(self):
+        d = tempfile.mkdtemp()
+        st = Store(os.path.join(d, "p.db"))
+        st.upsert([Item("x", "A", "news", "wire", "Government says talks continue", ts=100, uid="p1"),
+                   Item("x", "A", "news", "wire", "Quake near coast", ts=100, uid="p2", lat=1.0, lon=2.0, place="Real")], 100)
+        st.set_ai_pin("p1", "Kyiv", 50.45, 30.52, 100)
+        st.set_ai_pin("p2", "Moscow", 55.75, 37.6, 100)
+        by = {i.uid: i for i in st.items()}
+        self.assertEqual((by["p1"].lat, by["p1"].lon), (50.45, 30.52))
+        self.assertIn("placed by AI", by["p1"].place)
+        self.assertEqual((by["p2"].lat, by["p2"].place), (1.0, "Real"))
+        st.set_ai_pin("p1", "", None, None, 100)
+        self.assertIsNone(st.items()[0].lat if st.items()[0].uid == "p1" else st.items()[1].lat)
+        self.assertTrue(st.tried_ai_pin("p1"))
+
+    def test_auto_pin_uses_the_list_for_coordinates_and_asks_once(self):
+        srv = FakeLlama("1: Kyiv, Ukraine\n2: Atlantis, Mythic Sea\n3: none")
+        c = engine.Controller(tempfile.mkdtemp(), lambda u: (503, ""), lambda: S.NOW)
+        c.ai.host_factory = lambda: ai.AiHost("", "", port=srv.port)
+        try:
+            c.settings["ai_enabled"] = True
+            c.store.upsert([Item("x", "A", "conflict", "wire", "Government says air defenses engaged overnight", ts=S.NOW - 60, uid="g1"),
+                            Item("y", "B", "news", "wire", "Officials meet at the undersea city", ts=S.NOW - 120, uid="g2"),
+                            Item("z", "C", "news", "wire", "Markets are calm today", ts=S.NOW - 180, uid="g3")], S.NOW)
+            self.assertEqual(c.ai.auto_pin(), 1)
+            by = {i.uid: i for i in c.all_items(72)}
+            self.assertAlmostEqual(by["g1"].lat, 50.45)
+            self.assertIsNone(by["g2"].lat)        # the model named a place the list does not know: no invented pin
+            self.assertIsNone(by["g3"].lat)
+            asked = len(srv.asked)
+            self.assertEqual(c.ai.auto_pin(), 0)    # all three were tried; nothing more to ask
+            self.assertEqual(len(srv.asked), asked)
+            c.settings["ai_enabled"] = False
+            c.store.clear()
+            c.store.upsert([Item("x", "A", "news", "wire", "Another unplaced story", ts=S.NOW - 60, uid="g9")], S.NOW)
+            self.assertEqual(c.ai.auto_pin(), 0)    # AI off: the model is not started
+            self.assertEqual(len(srv.asked), asked)
+        finally:
+            srv.close()
+            c.close()
+
     def test_auto_translate_only_foreign_and_not_twice(self):
         c, srv = self.make("Russia orders mobilization of reservists on the border")
         try:

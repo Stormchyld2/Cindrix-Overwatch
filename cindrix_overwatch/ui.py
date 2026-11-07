@@ -536,6 +536,22 @@ class App:
             self.q.put(("tr", n))
         threading.Thread(target=run, daemon=True).start()
 
+    def _auto_pin(self):
+        """After a refresh: with the AI on, place unpinned stories on the map (the model names the place, the list gives the spot)."""
+        if getattr(self, "_pinning", False) or not self.c.settings.get("ai_enabled", False) or not self.c.settings.get("ai_pins", True):
+            return
+        self._pinning = True
+
+        def run():
+            n = 0
+            try:
+                n = self.c.ai.auto_pin(lambda m: self.q.put(("p", m)))
+            except Exception:
+                pass
+            self._pinning = False
+            self.q.put(("tr", n))      # same redraw path as translations
+        threading.Thread(target=run, daemon=True).start()
+
     def _open_selected(self):
         if self.selected:
             self.open_link(self.selected.url)
@@ -952,6 +968,7 @@ class App:
                     self.refresh_view()
                     if kind == "done":
                         self._auto_translate()
+                        self._auto_pin()
                     if kind == "err":
                         self.status_top.configure(text="Refresh problem: " + val)
                     self._close_splash_soon()

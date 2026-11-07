@@ -14,6 +14,7 @@ CREATE INDEX IF NOT EXISTS items_ts ON items(ts);
 CREATE TABLE IF NOT EXISTS health (
   source_id TEXT PRIMARY KEY, ok INTEGER, last_ok REAL, last_try REAL, count INTEGER, error TEXT);
 CREATE TABLE IF NOT EXISTS translations (uid TEXT PRIMARY KEY, title_en TEXT, summary_en TEXT, ts REAL);
+CREATE TABLE IF NOT EXISTS ai_pins (uid TEXT PRIMARY KEY, place TEXT, lat REAL, lon REAL, ts REAL);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 """
 COLS = "uid,source_id,source,kind,trust,title,url,summary,ts,lat,lon,place,severity,states,first_seen,last_seen"
@@ -63,7 +64,12 @@ class Store:
             rows = self.db.execute(f"SELECT {COLS} FROM items WHERE ts>=? ORDER BY ts DESC LIMIT ?",
                                    (since_ts, limit)).fetchall()
             tr = {r[0]: (r[1], r[2]) for r in self.db.execute("SELECT uid,title_en,summary_en FROM translations")}
+            pins = {r[0]: (r[1], r[2], r[3]) for r in self.db.execute("SELECT uid,place,lat,lon FROM ai_pins WHERE lat IS NOT NULL")}
         out = [self._item(r) for r in rows]
+        for it in out:
+            # a place the model named for a story the built-in list could not place (never overrides a real pin)
+            if it.lat is None and it.uid in pins:
+                it.place, it.lat, it.lon = pins[it.uid][0] + " (placed by AI)", pins[it.uid][1], pins[it.uid][2]
         for it in out:
             if it.uid in tr:
                 it.title_en, it.summary_en = tr[it.uid][0] or "", tr[it.uid][1] or ""
@@ -74,6 +80,17 @@ class Store:
         with self.lock:
             self.db.execute("INSERT OR REPLACE INTO translations VALUES (?,?,?,?)", (uid, title_en, summary_en, now))
             self.db.commit()
+
+    # places named by the model; lat/lon come from the built-in place list, never from the model. A row with no
+    # coordinates remembers "tried, no place" so the story is not asked about again.
+    def set_ai_pin(self, uid, place, lat, lon, now):
+        with self.lock:
+            self.db.execute("INSERT OR REPLACE INTO ai_pins VALUES (?,?,?,?,?)", (uid, place, lat, lon, now))
+            self.db.commit()
+
+    def tried_ai_pin(self, uid):
+        with self.lock:
+            return self.db.execute("SELECT 1 FROM ai_pins WHERE uid=?", (uid,)).fetchone() is not None
 
     def tried_translation(self, uid):
         with self.lock:
@@ -91,12 +108,14 @@ class Store:
         with self.lock:
             self.db.execute("DELETE FROM items WHERE ts<? AND first_seen<?", (older_than_ts, older_than_ts))
             self.db.execute("DELETE FROM translations WHERE uid NOT IN (SELECT uid FROM items)")
+            self.db.execute("DELETE FROM ai_pins WHERE uid NOT IN (SELECT uid FROM items)")
             self.db.commit()
 
     def clear(self):
         with self.lock:
             self.db.execute("DELETE FROM items")
             self.db.execute("DELETE FROM translations")
+            self.db.execute("DELETE FROM ai_pins")
             self.db.execute("DELETE FROM health")
             self.db.commit()
 
