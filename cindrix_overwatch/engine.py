@@ -236,16 +236,10 @@ class Controller:
     def _pull(self, src):
         self._throttle(src["url"])
         status, text = self.fetch(src["url"])
-        if src["url"].startswith("https://api.gdeltproject.org"):
-            # 429 means asked too often (the limit is per internet connection, so other devices count too): wait and retry twice at most
-            for wait in (12.0, 25.0):
-                if status != 429:
-                    break
-                time.sleep(wait)
-                self._throttle(src["url"])
-                status, text = self.fetch(src["url"])
+        # GDELT allows one request every 5 seconds and blocks a connection for about 15 minutes after that. Asking again while
+        # blocked only prolongs it, so a 429 is not retried: the source rests (see is_due) and other devices count too.
         if status == 429 and src["url"].startswith("https://api.gdeltproject.org"):
-            raise feeds.FeedError("GDELT is limiting requests from your internet connection right now. Overwatch will try again in an hour.")
+            raise feeds.FeedError("GDELT is limiting requests from your internet connection right now. Overwatch will try again in about 15 minutes.")
         if status != 200:
             raise feeds.FeedError("Could not reach it" + (f" (HTTP {status})" if status else (f": {text}" if text else "")))
         return feeds.PARSERS[src["parser"]](text, src, self.now())
@@ -261,8 +255,8 @@ class Controller:
                 return True
             gap = now - (h["last_try"] or 0)
             # the refresh button never re-asks GDELT within 5 minutes of the last try: asking again is what makes it say 429
-            # after GDELT refused us, leave it alone for an hour: it only recovers when it is not asked
-            min_gap = (300 if h["ok"] else 3600) if s["url"].startswith("https://api.gdeltproject.org") else 0
+            # after GDELT refused us, leave it alone for 16 minutes: the block lasts about 15 and it only clears when not asked
+            min_gap = (300 if h["ok"] else 960) if s["url"].startswith("https://api.gdeltproject.org") else 0
             return gap >= max(min_gap, 0 if force else s["every"] * 60)
         due = [s for s in self.sources() if is_due(s)]
         done, ok, failed, new = 0, 0, 0, 0
