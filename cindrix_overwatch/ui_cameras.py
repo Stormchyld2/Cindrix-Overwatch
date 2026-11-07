@@ -88,6 +88,9 @@ def _add(app, choices):
 
 
 def render(app):
+    wt = getattr(app, "watchtower", None)
+    if wt:
+        wt.refresh()
     for w in app.wt_list.winfo_children():
         w.destroy()
     app.wt_rows = {}

@@ -109,3 +109,12 @@ def stream_address(cam, sub=False):
 def shown_address(cam):
     """The address for the screen: never includes the password."""
     return cam.get("main", "")
+
+
+def host_label(cam):
+    """Just the address part (no path, no login) for the small line under a camera's name."""
+    try:
+        p = urlsplit(cam.get("main", ""))
+        return (p.hostname or "") + (f":{p.port}" if p.port else "")
+    except ValueError:
+        return ""

@@ -20,7 +20,7 @@ from .store import Store
 MAX_BYTES = 5_000_000
 KEEP_DAYS = 30
 DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15,
-                    "onion_addresses": {}, "my_outlets": [], "cameras": [], "ai_root": "", "ai_enabled": False,
+                    "onion_addresses": {}, "my_outlets": [], "cameras": [], "watchtower": {}, "ai_root": "", "ai_enabled": False,
                     "ai_engine": "", "ai_model": "auto", "auto_translate": True, "ai_pins": True, "ai_focus": True, "ai_instructions": ""}
 
 
@@ -232,6 +232,21 @@ class Controller:
         self.settings["cameras"].append(cam)
         self.save_settings()
         return cam
+
+    def watchtower(self):
+        """How the Watchtower tab was left: mode (4, 6 or 1), the camera in each dock, and the single camera."""
+        w = dict(self.settings.get("watchtower") or {})
+        w["mode"] = w.get("mode") if w.get("mode") in (1, 4, 6) else 4
+        w["slots"] = list(w.get("slots") or [])
+        w.setdefault("one", "")
+        w.setdefault("keep_days", 30)
+        return w
+
+    def set_watchtower(self, **kw):
+        w = self.watchtower()
+        w.update(kw)
+        self.settings["watchtower"] = w
+        self.save_settings()
 
     def remove_camera(self, cam_id):
         self.settings["cameras"] = [c for c in self.settings["cameras"] if c["id"] != cam_id]

@@ -13,7 +13,7 @@ from tkinter import messagebox, ttk
 from . import __version__, ai, geo, sources, theme
 from .engine import Controller
 from .mapview import DEFAULT_LAYERS, WorldMap
-from . import tor as _tor, torbrowser, ui_cameras, ui_extra, ui_intel
+from . import tor as _tor, torbrowser, ui_cameras, ui_extra, ui_intel, ui_watchtower
 from .model import KIND_LABELS, SEVERITY_WORDS, TRUST_LABELS
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
@@ -155,7 +155,7 @@ class App:
             tk.Label(top, image=self.icon_small, bg=theme.PANEL).pack(side="left", padx=(16, 8), pady=8)
         self.label(top, "CINDRIX OVERWATCH", self.f_title).pack(side="left", padx=(0, 18))
         self.nav = {}
-        for key, text in (("war", "War room"), ("intel", "Intel"), ("brief", "Brief"), ("settings", "Settings")):
+        for key, text in (("war", "War room"), ("intel", "Intel"), ("brief", "Brief"), ("settings", "Settings"), ("watchtower", "Watchtower")):
             b = tk.Button(top, text=text, command=lambda k=key: self.show_page(k), relief="flat", bd=0, padx=14, pady=7,
                           font=self.f_bold, cursor="hand2", bg=theme.PANEL, fg=theme.BONE,
                           activebackground=theme.PANEL_HIGH, activeforeground=theme.BONE)
@@ -168,7 +168,7 @@ class App:
         self.body.grid(row=1, column=0, sticky="nsew")
         self.body.rowconfigure(0, weight=1)
         self.body.columnconfigure(0, weight=1)
-        self.pages = {k: tk.Frame(self.body, bg=theme.CHARCOAL) for k in ("war", "intel", "brief", "settings")}
+        self.pages = {k: tk.Frame(self.body, bg=theme.CHARCOAL) for k in ("war", "intel", "brief", "settings", "watchtower")}
         for f in self.pages.values():
             f.grid(row=0, column=0, sticky="nsew")
         self.statusbar = self.label(r, "", self.f_small, theme.MUTED, bg=theme.PANEL)
@@ -177,6 +177,7 @@ class App:
         self.intel = ui_intel.IntelPage(self, self.pages["intel"])
         self._build_brief(self.pages["brief"])
         self._build_settings(self.pages["settings"])
+        self.watchtower = ui_watchtower.WatchtowerPage(self, self.pages["watchtower"])
 
     def _toggle_fullscreen(self, event=None, force=None):
         """F11 switches between maximized and true full screen (Escape leaves full screen)."""
@@ -184,10 +185,14 @@ class App:
         self.root.attributes("-fullscreen", self.fullscreen)
 
     def show_page(self, key):
+        if getattr(self, "page", None) == "watchtower" and key != "watchtower":
+            self.watchtower.hide()
         self.page = key
         self.pages[key].tkraise()
         for k, b in self.nav.items():
             b.configure(bg=theme.BLUE if k == key else theme.PANEL, fg=theme.ON_BLUE if k == key else theme.BONE)
+        if key == "watchtower":
+            self.watchtower.show()
         if key == "intel":
             self.intel.show()
         if key == "brief":
@@ -1099,7 +1104,14 @@ class App:
             self.root.deiconify()
             self.root.lift()
 
+    def _quit(self):
+        try:
+            self.watchtower.shutdown()
+        finally:
+            self.root.destroy()
+
     def run(self):
+        self.root.protocol("WM_DELETE_WINDOW", self._quit)
         self.root.mainloop()
 
 

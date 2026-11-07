@@ -13,6 +13,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Get ffmpeg for camera video (optional)
+        continue-on-error: true
+        shell: bash
+        run: |
+          python tools/get_ffmpeg.py
+          if [ -f ffmpeg_bundle/ffmpeg.exe ]; then echo "$PWD/ffmpeg_bundle" >> "$GITHUB_PATH"; fi
       - name: Window smoke test
         run: python -m tests.smoke_ui
       - name: Real Tor Browser install test
@@ -33,9 +39,17 @@ jobs:
           else
             echo "No built-in Tor in this build"
           fi
+          FF_ARGS=""
+          if [ -f ffmpeg_bundle/ffmpeg.exe ]; then
+            FF_ARGS="--add-binary ffmpeg_bundle/ffmpeg.exe;. --add-data ffmpeg_bundle/LICENSE.txt;licenses"
+            [ -f ffmpeg_bundle/LICENSE.txt ] || FF_ARGS="--add-binary ffmpeg_bundle/ffmpeg.exe;."
+            echo "Camera video (ffmpeg) included"
+          else
+            echo "No camera video in this build"
+          fi
           VER=$(python -c "from cindrix_overwatch import __version__ as v; print(v)")
           pyinstaller --onefile --windowed --icon cindrix_overwatch/data/icon.ico --name "CindrixOverwatch-$VER-windows" \
-            --add-data "cindrix_overwatch/data;cindrix_overwatch/data" $TOR_ARGS run_overwatch.py
+            --add-data "cindrix_overwatch/data;cindrix_overwatch/data" $TOR_ARGS $FF_ARGS run_overwatch.py
           ls -l dist/
       - name: Upload the exe (plain file, not zipped)
         id: upload

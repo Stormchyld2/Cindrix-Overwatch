@@ -2,6 +2,7 @@ import os
 import tempfile
 import threading
 import unittest
+import time
 import unittest.mock
 
 from cindrix_overwatch import lang, engine, feeds, geo, scoring, sources
@@ -1153,3 +1154,118 @@ class CameraTests(unittest.TestCase):
             self.assertEqual([x["name"] for x in c.cameras()], ["Garage"])
         finally:
             c.close()
+
+
+class CamViewTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from cindrix_overwatch import camview
+        cls.cv = camview
+        cls.ff = camview.find_ffmpeg()
+        cls.tmp = tempfile.mkdtemp()
+        cls.clip = os.path.join(cls.tmp, "clip.mp4")
+        if cls.ff:
+            import subprocess
+            subprocess.run([cls.ff, "-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=10", "-t", "2", "-pix_fmt", "yuv420p",
+                            "-c:v", "libx264", cls.clip], check=True)
+
+    def test_commands(self):
+        c = self.cv.view_command("ff", "rtsp://h/x", 480, 8)
+        self.assertIn("tcp", c)
+        self.assertIn("fps=8,scale=480:-2", c)
+        self.assertNotIn("-rtsp_transport", self.cv.view_command("ff", "/tmp/a.mp4", 480, 8))
+        r = self.cv.record_command("ff", "rtsp://h/x", "/out")
+        self.assertIn("copy", r)
+        self.assertTrue(r[-1].endswith("%Y-%m-%d_%H-%M-%S.mp4"))
+
+    def test_ppm_reader(self):
+        import io
+        pic = b"P6\n2 1\n255\n" + bytes(range(6))
+        s = io.BytesIO(pic + pic)
+        self.assertEqual(self.cv.read_ppm(s), pic)
+        self.assertEqual(self.cv.ppm_size(pic), (2, 1))
+        self.assertEqual(self.cv.read_ppm(s), pic)
+        self.assertIsNone(self.cv.read_ppm(s))
+        self.assertIsNone(self.cv.read_ppm(io.BytesIO(b"P6\n2 1\n255\n\x00")))
+
+    def test_safe_name(self):
+        self.assertEqual(self.cv.safe_name('Front/door: "A"'), "Front_door_ _A_")
+        self.assertEqual(self.cv.safe_name("  "), "Camera")
+
+    def test_prune(self):
+        d = tempfile.mkdtemp()
+        old, new = os.path.join(d, "a.mp4"), os.path.join(d, "b.mp4")
+        for p in (old, new):
+            open(p, "wb").close()
+        os.utime(old, (1000, 1000))
+        self.assertEqual(self.cv.prune_recordings(d, 30), 1)
+        self.assertTrue(os.path.exists(new) and not os.path.exists(old))
+        self.assertEqual(self.cv.prune_recordings(d, 0), 0)
+
+    def test_feed_shows_frames_then_offline(self):
+        if not self.ff:
+            self.skipTest("no ffmpeg here")
+        f = self.cv.Feed(lambda: self.clip, width=160, fps=10, retry=False)
+        f.start()
+        for _ in range(100):
+            if f.state == "offline":
+                break
+            time.sleep(0.1)
+        self.assertGreater(f.seq, 3)
+        self.assertEqual(self.cv.ppm_size(f.frame)[0], 160)
+        self.assertEqual(f.state, "offline")
+
+    def test_feed_missing_source_is_offline_and_retries(self):
+        if not self.ff:
+            self.skipTest("no ffmpeg here")
+        f = self.cv.Feed(lambda: "/nonexistent.mp4", retry=True)
+        f.start()
+        time.sleep(1.5)
+        f.stop()
+        self.assertEqual(f.state, "offline")
+        self.assertEqual(f.seq, 0)
+
+    def test_recorder_writes_a_playable_file(self):
+        if not self.ff:
+            self.skipTest("no ffmpeg here")
+        r = self.cv.Recorder(os.path.join(self.tmp, "rec"), "Front door", lambda: self.clip)
+        self.assertTrue(r.start())
+        for _ in range(100):
+            if not r.active:
+                break
+            time.sleep(0.1)
+        r.stop()
+        files = [x for x in os.listdir(r.folder) if x.endswith(".mp4")]
+        self.assertTrue(files, os.listdir(r.folder))
+        import subprocess
+        out = subprocess.run([self.ff, "-v", "error", "-i", os.path.join(r.folder, files[0]), "-f", "null", "-"], capture_output=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+
+
+class CamStatusTests(unittest.TestCase):
+    def test_reachable_and_host_port(self):
+        from cindrix_overwatch import camview
+        srv = socket.socket()
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(1)
+        port = srv.getsockname()[1]
+        try:
+            self.assertTrue(camview.reachable(f"rtsp://127.0.0.1:{port}/x"))
+        finally:
+            srv.close()
+        self.assertFalse(camview.reachable(f"rtsp://127.0.0.1:{port}/x", timeout=0.5))
+        self.assertEqual(camview.host_port("rtsp://u:p@10.0.0.2/x"), ("10.0.0.2", 554))
+        self.assertIsNone(camview.host_port("nonsense"))
+
+    def test_watchtower_settings_roundtrip(self):
+        d = tempfile.mkdtemp()
+        c = engine.Controller(d, lambda u: (503, ""), lambda: S.NOW)
+        self.assertEqual(c.watchtower()["mode"], 4)
+        c.set_watchtower(mode=6, slots=["a", "b"])
+        c.close()
+        c2 = engine.Controller(d, lambda u: (503, ""), lambda: S.NOW)
+        try:
+            self.assertEqual(c2.watchtower()["mode"], 6)
+            self.assertEqual(c2.watchtower()["slots"], ["a", "b"])
+        finally:
+            c2.close()

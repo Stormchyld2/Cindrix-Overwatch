@@ -1,6 +1,7 @@
 """Drives the real window on CI (Windows). Run: python -m tests.smoke_ui"""
 
 import tempfile
+import tkinter as tk
 import time
 
 from cindrix_overwatch import engine
@@ -157,6 +158,46 @@ def main():
         win.close()
         ui_cameras._remove(app, cid)
         assert not c.cameras()
+
+        # Watchtower viewer: tiles, offline screen, dock picker, modes (live pictures only when ffmpeg is here)
+        import os, subprocess, tempfile as _tf
+        from cindrix_overwatch import camview
+        wt = app.watchtower
+        for n in range(6):
+            c.settings["cameras"].append({"id": f"c{n}", "name": f"Cam {n}", "brand": "other", "main": "/nonexistent.mp4", "sub": "",
+                                          "user": "", "password": "", "enabled": True})
+        ff = camview.find_ffmpeg()
+        clip = os.path.join(d, "clip.mp4")
+        if ff:
+            subprocess.run([ff, "-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=10", "-t", "40", "-pix_fmt", "yuv420p",
+                            "-c:v", "libx264", clip], check=True)
+            c.settings["cameras"][0]["main"] = clip
+        c.save_settings()
+        app.show_page("watchtower")
+        wt.refresh()
+        assert len(wt.tiles) == 4 and wt.mode == 4, "Watchtower opens on the 4-camera view"
+        app.root.update()
+        end = time.time() + (6 if ff else 2)
+        while time.time() < end:
+            app.root.update()
+            time.sleep(0.05)
+        if ff:
+            assert wt.tiles[0].drawn == "frame", ("live picture must show", wt.tiles[0].drawn)
+        assert wt.tiles[1].drawn.startswith("off:"), ("an unreachable camera must show the offline screen", wt.tiles[1].drawn)
+        wt._place(tk.Toplevel(app.root), "c3", 1)
+        assert wt.slots[1] == "c3" and wt.slots[3] == "c1", wt.slots
+        wt.set_mode(6)
+        assert len(wt.tiles) == 6
+        wt.set_mode(1)
+        assert len(wt.tiles) == 1
+        wt.list_clicked("c2")
+        assert wt.one == "c2"
+        wt.set_mode(4)
+        app.show_page("settings")
+        assert not wt.feeds, "feeds stop when the tab is left"
+        for n in range(6):
+            c.remove_camera(f"c{n}")
+
 
         app.root.destroy()
         c.close()
