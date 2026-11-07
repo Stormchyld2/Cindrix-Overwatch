@@ -245,7 +245,12 @@ fun SourcesScreen(vm: OverwatchViewModel) {
     var kind by remember { mutableStateOf("news") }
     var note by remember { mutableStateOf("") }
     val now = nowSeconds()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            Button(onClick = { shareSourceList(ctx, vm.sources) }, shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Share source list (CSV)") }
+        }
         item {
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Add your own feed (RSS or Atom, https only)", fontWeight = FontWeight.SemiBold)
@@ -299,6 +304,17 @@ fun SettingsScreen(vm: OverwatchViewModel) {
             Text("Saved history", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text("${vm.storedCount} items kept for 30 days on this device. They show even with no internet.", fontSize = 12.sp, color = Ow.Muted)
             Button(onClick = { confirm = true }, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Ow.PanelHigh, contentColor = Ow.Bone)) { Text("Clear saved history") }
+        }
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val torCtx = androidx.compose.ui.platform.LocalContext.current
+            var onion by remember { mutableStateOf("") }
+            var torNote by remember { mutableStateOf("") }
+            Text("Onion links (Tor)", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Overwatch itself never uses Tor. Paste an onion address and it opens in Tor Browser, which hides you on the Tor network.", fontSize = 12.sp, color = Ow.Muted)
+            OutlinedTextField(onion, { onion = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Onion address") })
+            Button(onClick = { torNote = openWithTor(torCtx, onion) ?: "" }, shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Ow.Blue, contentColor = Ow.OnBlue)) { Text("Open in Tor Browser") }
+            if (torNote.isNotEmpty()) Text(torNote, fontSize = 12.sp, color = Ow.Muted)
         }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Ow.Panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("About the data", fontWeight = FontWeight.Bold, fontSize = 18.sp)

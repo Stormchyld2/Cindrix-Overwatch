@@ -112,4 +112,29 @@ class OverwatchTest {
         assertFalse(validFeedUrl("javascript:alert(1)"))
         assertTrue(BUILTIN_SOURCES.all { validFeedUrl(it.url) })
     }
+
+    @Test fun sourceListCsvQuotesAndReportsStatus() {
+        val a = Src("a", "Wire, \"One\"", "g", Kind.NEWS, Trust.WIRE, "https://example.org/a")
+        val rows = listOf(
+            SourceStatus(a, true, Health(true, NOW, NOW, 3, "")),
+            SourceStatus(a, false, null),
+            SourceStatus(a, true, Health(false, null, NOW, 0, "timeout")),
+        )
+        val lines = sourceListCsv(rows).trimEnd().split("\r\n")
+        assertEquals(4, lines.size)
+        assertTrue(lines[1].startsWith("\"Wire, \"\"One\"\"\","))
+        assertTrue(lines[1].endsWith("\"working\""))
+        assertTrue(lines[2].endsWith("\"turned off\""))
+        assertTrue(lines[3].endsWith("\"problem: timeout\""))
+    }
+
+    @Test fun onionUrlAcceptsOnlyFullV3Addresses() {
+        val host = "a".repeat(56) + ".onion"
+        assertEquals("http://$host", onionUrl(host))
+        assertEquals("http://$host/x", onionUrl(" HTTPS://$host/x "))
+        assertNull(onionUrl("a".repeat(55) + ".onion"))
+        assertNull(onionUrl("example.com"))
+        assertNull(onionUrl(""))
+        assertNull(onionUrl("1".repeat(56) + ".onion"))
+    }
 }
