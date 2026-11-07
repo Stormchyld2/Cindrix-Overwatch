@@ -170,4 +170,11 @@ class OverwatchTest {
         assertTrue(validFeedUrl("http://$host/rss"))
         assertFalse(validFeedUrl("http://example.org/rss"))
     }
+
+    @Test fun aiMayOnlyPickAPlaceTheHeadlineNames() {
+        assertTrue(namesPlace("Fighting near Kherson, officials say", "Kherson, Ukraine"))
+        assertTrue(namesPlace("Strike hits Ukraine power grid", "Kyiv, Ukraine"))
+        assertFalse(namesPlace("Government says air defenses engaged overnight", "Kyiv, Ukraine"))
+        assertFalse(namesPlace("Markets are calm today", "Paris"))
+    }
 }

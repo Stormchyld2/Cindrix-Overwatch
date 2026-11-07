@@ -909,7 +909,7 @@ class Translation(unittest.TestCase):
         c.ai.host_factory = lambda: ai.AiHost("", "", port=srv.port)
         try:
             c.settings["ai_enabled"] = True
-            c.store.upsert([Item("x", "A", "conflict", "wire", "Government says air defenses engaged overnight", ts=S.NOW - 60, uid="g1"),
+            c.store.upsert([Item("x", "A", "conflict", "wire", "Government in Kyiv says air defenses engaged overnight", ts=S.NOW - 60, uid="g1"),
                             Item("y", "B", "news", "wire", "Officials meet at the undersea city", ts=S.NOW - 120, uid="g2"),
                             Item("z", "C", "news", "wire", "Markets are calm today", ts=S.NOW - 180, uid="g3")], S.NOW)
             self.assertEqual(c.ai.auto_pin(), 1)
@@ -917,6 +917,8 @@ class Translation(unittest.TestCase):
             self.assertAlmostEqual(by["g1"].lat, 50.45)
             self.assertIsNone(by["g2"].lat)        # the model named a place the list does not know: no invented pin
             self.assertIsNone(by["g3"].lat)
+            self.assertTrue(ai.names_place("Fighting near Kherson, officials say", "Kherson, Ukraine"))
+            self.assertFalse(ai.names_place("Government says air defenses engaged overnight", "Kyiv, Ukraine"))   # a place the headline never names
             asked = len(srv.asked)
             self.assertEqual(c.ai.auto_pin(), 0)    # all three were tried; nothing more to ask
             self.assertEqual(len(srv.asked), asked)

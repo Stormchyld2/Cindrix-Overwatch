@@ -119,8 +119,15 @@ fun cleanTranslation(out: String?, original: String): String {
 }
 
 // ----- map pins -----
-const val PIN_SYSTEM = "You say where a news headline takes place. Use only a real place the headline names or clearly means " +
-    "(a government's statement belongs to its capital). Never guess. If there is no clear place, say none."
+const val PIN_SYSTEM = "You say where a news headline takes place. Use only a real place that the headline itself names. " +
+    "Never guess and never infer a place the headline does not say. If it names no place, say none."
+
+/** True when the headline itself contains the place the model named (the city, or failing that the country). The model may only
+ *  pick WHICH named place the story is about; it cannot bring in one the headline never mentions. */
+fun namesPlace(headline: String, place: String): Boolean {
+    val h = headline.lowercase()
+    return place.split(",").map { it.trim().lowercase() }.any { it.length >= 3 && Regex("\\b" + Regex.escape(it) + "\\b").containsMatchIn(h) }
+}
 
 fun parsePlaces(text: String?, count: Int): Map<Int, String> {
     val out = LinkedHashMap<Int, String>()

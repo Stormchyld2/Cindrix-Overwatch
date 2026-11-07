@@ -526,8 +526,15 @@ def build_brief(items, parts, summaries, bottom, changes=None):
     return "\n".join(out).rstrip()
 
 
-PIN_SYSTEM = ("You say where a news headline takes place. Use only a real place the headline names or clearly means "
-              "(a government's statement belongs to its capital). Never guess. If there is no clear place, say none.")
+PIN_SYSTEM = ("You say where a news headline takes place. Use only a real place that the headline itself names. "
+              "Never guess and never infer a place the headline does not say. If it names no place, say none.")
+
+
+def names_place(headline, place):
+    """True when the headline itself contains the place the model named (the city, or failing that the country). The model
+    may only pick WHICH of the named places the story is about; it cannot bring in one the headline never mentions."""
+    h = (headline or "").lower()
+    return any(len(p) >= 3 and re.search(r"\b" + re.escape(p) + r"\b", h) for p in (x.strip().lower() for x in place.split(",")))
 
 
 def parse_places(text, count):
@@ -752,7 +759,7 @@ class AiService:
             done = 0
             for n, it in enumerate(todo, 1):
                 found = None
-                if n in named:
+                if n in named and names_place(it.shown, named[n]):
                     # "City, Country": look for the most specific part first, or the country would win by length
                     found = geo.find_place(named[n].split(",")[0]) or geo.find_place(named[n])
                 if found:
