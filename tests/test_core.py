@@ -1354,3 +1354,73 @@ class LinkTests(unittest.TestCase):
             self.assertNotEqual(c.new_link_code(), old)
         finally:
             c.close()
+
+
+class LockTests(unittest.TestCase):
+    def test_pin_hash_and_rules(self):
+        from cindrix_overwatch import pinlock
+        salt, h = pinlock.make_hash("2468")
+        self.assertTrue(pinlock.check_hash("2468", salt, h))
+        self.assertFalse(pinlock.check_hash("2469", salt, h))
+        self.assertNotIn("2468", h)
+        self.assertIsNotNone(pinlock.valid_pin("12"))
+        self.assertIsNotNone(pinlock.valid_pin("12ab"))
+        self.assertIsNone(pinlock.valid_pin("1234"))
+
+    def test_throttle_waits_after_five_wrong_tries(self):
+        from cindrix_overwatch import pinlock
+        t = pinlock.Throttle()
+        for _ in range(pinlock.MAX_TRIES):
+            self.assertEqual(t.wait(now=100), 0)
+            t.wrong(now=100)
+        self.assertEqual(t.wait(now=100), pinlock.WAIT_SECONDS)
+        self.assertEqual(t.wait(now=100 + pinlock.WAIT_SECONDS + 1), 0)
+
+    def test_controller_pin_and_lock_mode(self):
+        d = tempfile.mkdtemp()
+        c = engine.Controller(d, lambda u: (503, ""), lambda: S.NOW)
+        try:
+            with self.assertRaises(ValueError):
+                c.set_lock_mode("pin")
+            with self.assertRaises(ValueError):
+                c.set_pin("1234", "9999")
+            c.set_pin("1234", "1234")
+            c.set_lock_mode("hello")
+            self.assertEqual(c.lock()["mode"], "hello")
+            for _ in range(4):
+                self.assertEqual(c.check_pin("0000")[0], False)
+            self.assertEqual(c.check_pin("1234"), (True, 0))
+            for _ in range(5):
+                c.check_pin("0000")
+            ok, wait = c.check_pin("1234")
+            self.assertFalse(ok)
+            self.assertGreater(wait, 0)
+            self.assertNotIn("1234", open(os.path.join(d, "settings.json")).read() if os.path.exists(os.path.join(d, "settings.json")) else "")
+        finally:
+            c.close()
+
+    def test_logins_are_scrambled_in_the_file_but_read_back(self):
+        from cindrix_overwatch import vault
+        d = tempfile.mkdtemp()
+        with unittest.mock.patch.object(vault, "seal", lambda t: "dpapi1:" + t[::-1] if t else t), \
+                unittest.mock.patch.object(vault, "open_", lambda t: t[7:][::-1] if t.startswith("dpapi1:") else t):
+            c = engine.Controller(d, lambda u: (503, ""), lambda: S.NOW)
+            c.add_camera("Front", "reolink", "192.168.1.20", "admin", "SECRETPW", None)
+            c.set_link_enabled(True)
+            token = c.link()["token"]
+            c.close()
+            raw = open(os.path.join(d, [f for f in os.listdir(d) if f.endswith(".json")][0])).read()
+            self.assertNotIn("SECRETPW", raw)
+            self.assertNotIn(token, raw)
+            c2 = engine.Controller(d, lambda u: (503, ""), lambda: S.NOW)
+            try:
+                self.assertEqual(c2.cameras()[0]["password"], "SECRETPW")
+                self.assertEqual(c2.link()["token"], token)
+            finally:
+                c2.close()
+
+    def test_hello_is_quiet_off_windows(self):
+        from cindrix_overwatch import hello
+        if os.name != "nt":
+            self.assertFalse(hello.available())
+            self.assertFalse(hello.verify())

@@ -4,7 +4,9 @@
 import tkinter as tk
 from tkinter import ttk
 
-from . import cameras, link as _link, theme
+import threading
+
+from . import cameras, hello, link as _link, theme
 
 TIER_COLORS = {"works": theme.GREEN, "enable": theme.BLUE, "some": theme.AMBER, "no": theme.RED}
 TIER_FILTERS = [("All", None), ("Works", "works"), ("Turn it on first", "enable"), ("Some models", "some"), ("Not supported", "no")]
@@ -12,7 +14,7 @@ TIER_FILTERS = [("All", None), ("Works", "works"), ("Turn it on first", "enable"
 
 def build_tab(app, p):
     p.columnconfigure(0, weight=1)
-    p.rowconfigure(3, weight=1)
+    p.rowconfigure(4, weight=1)
     head = tk.Frame(p, bg=theme.CHARCOAL)
     head.grid(row=0, column=0, sticky="ew", padx=14, pady=(12, 0))
     app.label(head, "Watchtower: your cameras", app.f_big).pack(side="left")
@@ -57,9 +59,10 @@ def build_tab(app, p):
     cb.bind("<<ComboboxSelected>>", picked)
     picked()
     _build_link(app, p)
+    _build_lock(app, p)
     # the list
     box = tk.Frame(p, bg=theme.CHARCOAL)
-    box.grid(row=3, column=0, sticky="nsew", padx=14, pady=(0, 10))
+    box.grid(row=4, column=0, sticky="nsew", padx=14, pady=(0, 10))
     box.rowconfigure(0, weight=1)
     box.columnconfigure(0, weight=1)
     cv = tk.Canvas(box, bg=theme.CHARCOAL, highlightthickness=0)
@@ -314,3 +317,62 @@ def link_copy(app):
         app.root.clipboard_clear()
         app.root.clipboard_append(code)
         app.link_status.configure(text="Code copied. Paste it into Overwatch on your phone.", fg=theme.GREEN)
+
+
+# ----- lock -----
+def _build_lock(app, p):
+    card = tk.Frame(p, bg=theme.PANEL)
+    card.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 8))
+    app.label(card, "Lock Watchtower", app.f_bold).grid(row=0, column=0, columnspan=6, sticky="w", padx=12, pady=(10, 2))
+    app.label(card, "Asks for a PIN (or fingerprint) when Watchtower opens, and again after you have been away from it for a minute.",
+              app.f_small, theme.MUTED).grid(row=1, column=0, columnspan=6, sticky="w", padx=12)
+    app.lock_mode = tk.StringVar(value=app.c.lock()["mode"])
+    app.lock_radios = {}
+    for i, (key, text) in enumerate((("off", "Off"), ("pin", "Overwatch PIN"), ("hello", "Fingerprint (Windows Hello)"))):
+        rb = tk.Radiobutton(card, text=text, value=key, variable=app.lock_mode, command=lambda: lock_apply(app), bg=theme.PANEL, fg=theme.BONE,
+                            selectcolor=theme.CHARCOAL, activebackground=theme.PANEL, activeforeground=theme.BONE, font=app.f_body,
+                            state="disabled" if key == "hello" else "normal")
+        rb.grid(row=2, column=i * 2, columnspan=2, sticky="w", padx=8)
+        app.lock_radios[key] = rb
+    app.pin1, app.pin2 = tk.StringVar(), tk.StringVar()
+    for col, (label, var) in enumerate((("New PIN (4 or more digits)", app.pin1), ("Same PIN again", app.pin2))):
+        app.label(card, label, app.f_small, theme.MUTED).grid(row=3, column=col * 2, sticky="w", padx=(12, 4), pady=(8, 0))
+        tk.Entry(card, textvariable=var, show="\u2022", width=16, bg=theme.CHARCOAL, fg=theme.BONE, insertbackground=theme.BONE,
+                 relief="flat").grid(row=4, column=col * 2, sticky="w", padx=(12, 4), ipady=4)
+    app.btn(card, "Save PIN", lambda: lock_save_pin(app), small=True).grid(row=4, column=4, padx=8)
+    app.lock_status = tk.Label(card, text="", font=app.f_small, fg=theme.MUTED, bg=theme.PANEL, anchor="w")
+    app.lock_status.grid(row=5, column=0, columnspan=6, sticky="w", padx=12, pady=(4, 10))
+    app.hello_ok = None
+
+    def check():
+        app.hello_ok = bool(hello.available())
+    threading.Thread(target=check, daemon=True).start()
+
+    def poll():
+        if app.hello_ok is None:
+            app.root.after(500, poll)
+        elif app.hello_ok:
+            app.lock_radios["hello"].configure(state="normal")
+    app.root.after(500, poll)
+
+
+def lock_save_pin(app):
+    try:
+        app.c.set_pin(app.pin1.get(), app.pin2.get())
+    except ValueError as e:
+        app.lock_status.configure(text=str(e), fg=theme.RED)
+        return
+    app.pin1.set("")
+    app.pin2.set("")
+    app.lock_status.configure(text="PIN saved.", fg=theme.GREEN)
+
+
+def lock_apply(app):
+    try:
+        app.c.set_lock_mode(app.lock_mode.get())
+    except ValueError as e:
+        app.lock_mode.set(app.c.lock()["mode"])
+        app.lock_status.configure(text=str(e), fg=theme.RED)
+        return
+    text = {"off": "Lock is off.", "pin": "Lock is on (PIN).", "hello": "Lock is on (fingerprint, with your PIN as backup)."}
+    app.lock_status.configure(text=text[app.lock_mode.get()], fg=theme.MUTED)

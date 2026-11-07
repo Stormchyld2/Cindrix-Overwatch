@@ -5,7 +5,7 @@ import threading
 import time
 import tkinter as tk
 
-from . import camview, cameras, theme
+from . import camview, cameras, hello, theme
 
 MODES = [("4 cameras", 4), ("6 cameras", 6), ("One camera", 1)]
 GRID = {4: (2, 2), 6: (2, 3), 1: (1, 1)}
@@ -98,6 +98,10 @@ class WatchtowerPage:
         self._layout_after = None
         self._last_rec_check = 0.0
         self._ticking = False
+        self.unlocked = False
+        self.last_seen = 0.0
+        self.lock_ui = None
+        self._hello_result = None
         self._stop_probe = threading.Event()
         w = self.c.watchtower()
         self.mode, self.slots, self.one = w["mode"], w["slots"], w["one"]
@@ -266,6 +270,7 @@ class WatchtowerPage:
             self._ticking = False
             return
         self._ticking = True
+        self.last_seen = time.monotonic()
         for t in self.tiles:
             cam = self.cams.get(t.cam_id)
             if not cam:
@@ -474,8 +479,80 @@ class WatchtowerPage:
             self.app.label(line, it.get("when", ""), self.app.f_small, theme.MUTED, bg=theme.PANEL, width=10, anchor="w").pack(side="left")
             self.app.label(line, it.get("text", ""), self.app.f_small, theme.BONE, bg=theme.PANEL).pack(side="left")
 
+    # ----- the lock -----
+    GRACE = 60.0
+
+    def needs_unlock(self):
+        return self.c.lock()["mode"] != "off" and (not self.unlocked or time.monotonic() - self.last_seen > self.GRACE)
+
+    def _show_lock(self):
+        """An in-window cover, so the prompt can never end up behind anything."""
+        a = self.app
+        if self.lock_ui:
+            self.lock_ui.destroy()
+        f = self.lock_ui = tk.Frame(self.parent, bg=theme.CHARCOAL)
+        f.place(relx=0, rely=0, relwidth=1, relheight=1)
+        f.lift()
+        box = tk.Frame(f, bg=theme.PANEL)
+        box.place(relx=0.5, rely=0.4, anchor="center")
+        a.label(box, "Watchtower is locked", a.f_big, bg=theme.PANEL).pack(padx=40, pady=(24, 4))
+        self.lock_note = a.label(box, "Enter your PIN to see the cameras.", a.f_small, theme.MUTED, bg=theme.PANEL)
+        self.lock_note.pack(padx=40)
+        self.pin_var = tk.StringVar()
+        e = tk.Entry(box, textvariable=self.pin_var, show="\u2022", justify="center", font=a.f_big, width=10, bg=theme.CHARCOAL, fg=theme.BONE,
+                     insertbackground=theme.BONE, relief="flat")
+        e.pack(pady=14, ipady=6)
+        e.bind("<Return>", lambda ev: self._try_pin())
+        a.btn(box, "Unlock", self._try_pin, primary=True).pack(pady=(0, 6))
+        if self.c.lock()["mode"] == "hello":
+            a.btn(box, "Use fingerprint", self._start_hello, small=True).pack(pady=(0, 6))
+        tk.Frame(box, bg=theme.PANEL, height=18).pack()
+        e.focus_force()
+        if self.c.lock()["mode"] == "hello":
+            self._start_hello()
+
+    def _try_pin(self):
+        ok, wait = self.c.check_pin(self.pin_var.get())
+        self.pin_var.set("")
+        if ok:
+            self._unlock()
+        elif wait:
+            self.lock_note.configure(text=f"Too many wrong tries. Wait {wait} seconds.", fg=theme.AMBER)
+        else:
+            self.lock_note.configure(text="That PIN is not right.", fg=theme.RED)
+
+    def _start_hello(self):
+        self._hello_result = None
+        self.lock_note.configure(text="Waiting for Windows... (or type your PIN)", fg=theme.MUTED)
+        threading.Thread(target=lambda: setattr(self, "_hello_result", hello.verify()), daemon=True).start()
+        self.parent.after(400, self._poll_hello)
+
+    def _poll_hello(self):
+        if not self.lock_ui:
+            return
+        if self._hello_result is None:
+            self.parent.after(400, self._poll_hello)
+        elif self._hello_result:
+            self._unlock()
+        else:
+            self.lock_note.configure(text="Fingerprint did not work. Try again or type your PIN.", fg=theme.AMBER)
+
+    def _unlock(self):
+        self.unlocked = True
+        self.last_seen = time.monotonic()
+        if self.lock_ui:
+            self.lock_ui.destroy()
+            self.lock_ui = None
+        self.show()
+
     # ----- show / hide -----
     def show(self):
+        if self.needs_unlock():
+            self.unlocked = False
+            self.visible = False
+            self._show_lock()
+            return
+        self.last_seen = time.monotonic()
         self.visible = True
         self.refresh()
         self.sync_feeds()
@@ -484,6 +561,9 @@ class WatchtowerPage:
 
     def hide(self):
         self.visible = False
+        if self.lock_ui:
+            self.lock_ui.destroy()
+            self.lock_ui = None
         for f in self.feeds.values():
             f.stop()
         self.feeds = {}

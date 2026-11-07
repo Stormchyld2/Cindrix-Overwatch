@@ -14,13 +14,13 @@ import urllib.request
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor
 
-from . import ai, cameras, discover, feeds, geo, scoring, sources, tor
+from . import ai, cameras, discover, feeds, geo, scoring, sources, tor, vault
 from .store import Store
 
 MAX_BYTES = 5_000_000
 KEEP_DAYS = 30
 DEFAULT_SETTINGS = {"home_states": ["WV", "TN"], "custom_feeds": [], "disabled": [], "auto_minutes": 15,
-                    "onion_addresses": {}, "my_outlets": [], "cameras": [], "watchtower": {}, "link": {}, "ai_root": "", "ai_enabled": False,
+                    "onion_addresses": {}, "my_outlets": [], "cameras": [], "watchtower": {}, "link": {}, "lock": {}, "ai_root": "", "ai_enabled": False,
                     "ai_engine": "", "ai_model": "auto", "auto_translate": True, "ai_pins": True, "ai_focus": True, "ai_instructions": ""}
 
 
@@ -193,12 +193,26 @@ class Controller:
         except (OSError, ValueError):
             pass
         s["home_states"] = [c for c in s["home_states"] if c in geo.STATES][:6]
+        for c in s["cameras"]:
+            if isinstance(c, dict):
+                c["password"] = vault.open_(c.get("password", ""))
+        if isinstance(s["link"], dict) and s["link"].get("token"):
+            s["link"]["token"] = vault.open_(s["link"]["token"])
         return s
+
+    def _sealed(self):
+        """A copy of the settings with camera logins and the phone-link code scrambled for the file."""
+        d = json.loads(json.dumps(self.settings))
+        for c in d["cameras"]:
+            c["password"] = vault.seal(c.get("password", ""))
+        if d["link"].get("token"):
+            d["link"]["token"] = vault.seal(d["link"]["token"])
+        return d
 
     def save_settings(self):
         tmp = self.settings_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(self.settings, f, indent=1)
+            json.dump(self._sealed(), f, indent=1)
         os.replace(tmp, self.settings_path)
 
     def set_home_states(self, codes):
@@ -247,6 +261,46 @@ class Controller:
         w.update(kw)
         self.settings["watchtower"] = w
         self.save_settings()
+
+    def lock(self):
+        """The Watchtower lock: mode is 'off', 'pin' or 'hello'; the PIN is kept only as a salted hash."""
+        l = dict(self.settings.get("lock") or {})
+        l["mode"] = l.get("mode") if l.get("mode") in ("pin", "hello") else "off"
+        return l
+
+    def set_lock_mode(self, mode):
+        l = self.lock()
+        if mode in ("pin", "hello") and not l.get("pin_hash"):
+            raise ValueError("Set a PIN first. It is the way in if the fingerprint reader does not work.")
+        l["mode"] = mode
+        self.settings["lock"] = l
+        self.save_settings()
+
+    def set_pin(self, pin, pin2):
+        from . import pinlock
+        bad = pinlock.valid_pin(pin)
+        if bad:
+            raise ValueError(bad)
+        if pin != pin2:
+            raise ValueError("The two PINs are not the same.")
+        l = self.lock()
+        l["pin_salt"], l["pin_hash"] = pinlock.make_hash(pin)
+        self.settings["lock"] = l
+        self.save_settings()
+
+    def check_pin(self, pin):
+        """(ok, seconds_to_wait). Too many wrong tries makes the person wait a minute."""
+        from . import pinlock
+        l = self.lock()
+        th = pinlock.Throttle(l.get("tries", 0), l.get("until", 0.0))
+        if th.wait():
+            return False, th.wait()
+        ok = bool(l.get("pin_hash")) and pinlock.check_hash(pin, l.get("pin_salt", ""), l["pin_hash"])
+        th.right() if ok else th.wrong()
+        l["tries"], l["until"] = th.tries, th.until
+        self.settings["lock"] = l
+        self.save_settings()
+        return ok, th.wait()
 
     def link(self):
         """Phone link settings: whether it is on, the pairing token, and the relay port each camera keeps."""

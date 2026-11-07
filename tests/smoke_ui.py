@@ -171,6 +171,27 @@ def main():
         ui_cameras.link_toggle(app)
         assert app.link_server is None and not app.link_code_var.get()
 
+        # lock: needs a PIN first, then covers the tab until the right PIN is typed
+        app.lock_mode.set("pin")
+        ui_cameras.lock_apply(app)
+        assert app.lock_mode.get() == "off", "lock cannot be switched on before a PIN exists"
+        app.pin1.set("2468"); app.pin2.set("2468")
+        ui_cameras.lock_save_pin(app)
+        app.lock_mode.set("pin")
+        ui_cameras.lock_apply(app)
+        assert c.lock()["mode"] == "pin"
+        app.show_page("watchtower")
+        assert app.watchtower.lock_ui is not None and not app.watchtower.visible, "Watchtower must start locked"
+        app.watchtower.pin_var.set("0000")
+        app.watchtower._try_pin()
+        assert app.watchtower.lock_ui is not None, "a wrong PIN must not unlock"
+        app.watchtower.pin_var.set("2468")
+        app.watchtower._try_pin()
+        assert app.watchtower.lock_ui is None and app.watchtower.visible, "the right PIN unlocks"
+        app.lock_mode.set("off")
+        ui_cameras.lock_apply(app)
+        app.show_page("settings")
+
         # Watchtower viewer: tiles, offline screen, dock picker, modes (live pictures only when ffmpeg is here)
         import os, subprocess, tempfile as _tf
         from cindrix_overwatch import camview
